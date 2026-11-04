@@ -1,1 +1,22 @@
-# daily-loaf
+.env
+.env.*
+!.env.example
+__pycache__/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage/
+htmlcov/
+node_modules/
+dist/
+playwright-report/
+test-results/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!example.tfvars
+.DS_Store
+.idea/

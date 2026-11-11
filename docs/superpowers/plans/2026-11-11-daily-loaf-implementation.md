@@ -1,19 +1,22 @@
-# Bread Order App — Implementation Plan
+# Daily Loaf — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Tasks marked **[MANUAL]** are done by Suhasini herself (in VS Code, the GitHub website, the AWS console or her own terminal); agents must skip them and never run them.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. **Suhasini builds every task herself, in VS Code, as a learning project.** An agent's job is the walkthrough and review described in "Learning loop". Never run [MANUAL] tasks, and never push to her repo.
 
 **Goal:** An admin-only, mobile-friendly web app for a home bread business (customers, orders, daily rates, payments, monthly PDF bills with carry-forward). It runs on AWS for close to €0 and is published as a public portfolio repo with a live demo.
 
-**Architecture:** React + TypeScript SPA on S3/CloudFront calls a FastAPI backend running as a Lambda container image behind API Gateway. Data lives in Neon Postgres (Frankfurt) and PDF bills in a private S3 bucket. Admins sign in with Cognito (MFA). Business rules are pure Python, tested without AWS or a database.
+**Architecture:** Angular + TypeScript SPA on S3/CloudFront calls a FastAPI backend running as a Lambda container image behind API Gateway. Data lives in Neon Postgres (Frankfurt) and PDF bills in a private S3 bucket. Admins sign in with Cognito (MFA). Business rules are pure Python, tested without AWS or a database. Search runs on Elasticsearch locally and in CI, with a Postgres implementation of the same interface on AWS.
 
 **Tech Stack:**
 - **Backend:** Python 3.12, uv, FastAPI, Pydantic v2, SQLAlchemy 2 (sync), Alembic, psycopg 3, PyJWT, WeasyPrint, boto3, Mangum.
-- **Backend tests:** pytest, Testcontainers, moto, time-machine.
-- **Frontend:** Node 22, React 19, Vite, TypeScript (strict), React Router 7, TanStack Query 5, React Hook Form + Zod, Tailwind 4 + shadcn/ui, openapi-typescript + openapi-fetch, aws-amplify 6 (Auth only).
-- **Frontend tests:** Vitest, React Testing Library, MSW 2, Playwright.
+- **Search:** Elasticsearch 9 (Docker locally), `elasticsearch` Python client.
+- **Backend tests:** pytest, Testcontainers (Postgres and Elasticsearch), moto, time-machine.
+- **Frontend:** Node 26, current Angular (standalone, signals, zoneless), TypeScript (strict), RxJS, typed Reactive Forms, Angular Material + CDK, openapi-typescript (types only), aws-amplify 6 (Auth only), angularx-qrcode.
+- **Frontend tests:** Angular CLI test runner (Vitest), Angular Testing Library, `HttpTestingController`, Playwright.
 - **Infrastructure and CI:** Terraform ≥ 1.9, GitHub Actions.
 
-**Spec:** `docs/superpowers/specs/2026-11-03-bread-order-app-design.md`
+**Spec:** `docs/superpowers/specs/2026-11-11-daily-loaf-architecture.md` (architecture, data model, rules, API, diagrams). Read the matching section before each task.
+
+**Repo:** `daily-loaf` (wherever a GitHub path says `bread-order-app`, use `daily-loaf`). AWS resource names keep the `bread-` prefix.
 
 ---
 
@@ -22,16 +25,62 @@
 | Group | Who | Tasks |
 |---|---|---|
 | 1. Git & GitHub | **Suhasini, in VS Code and on github.com** | GIT-1, GIT-2 |
-| 2. Database | Code | DB-1 … DB-4 |
-| 3. Backend | Code | BE-1 … BE-12 |
-| 4. Frontend | Code | FE-1 … FE-11 |
+| 2. Database and search | Code | DB-1 … DB-5 |
+| 3. Backend | Code | BE-1 … BE-13 |
+| 4. Frontend (Angular) | Code | FE-1 … FE-12 |
 | 5. AWS & deployment | **Suhasini, step by step** | AWS-1 … AWS-10 |
 
 **Execution order** (groups depend on each other, so follow this order rather than the group order):
 
-GIT-1 → DB-1 → BE-1 → GIT-2 → BE-2 → DB-2 → DB-3 → DB-4 → BE-3 → BE-4 → BE-5 … BE-12 → FE-1 … FE-11 → AWS-1 … AWS-10
+GIT-1 → DB-1 → BE-1 → GIT-2 → BE-2 → DB-2 → DB-3 → DB-4 → BE-3 → BE-4 → BE-5 … BE-12 → DB-5 → BE-13 → FE-1 … FE-12 → AWS-1 … AWS-10
+
+**Interview-first order (BKA prep):** FE-1 … FE-7 can be built before the backend, because their unit tests fake the API with `HttpTestingController`.
+- Until BE-12 produces `backend/openapi.json`, skip `npm run gen:api` and the schema-diff CI step.
+- Write the types you need by hand in `core/api/api-types.ts`, matching the schemas in the BE tasks.
+- Switch to the generated types once BE-12 is done.
 
 All commands in code tasks run from the repo root unless a `cd` is shown. Commit steps are written as `git` commands, but you can do the same from VS Code's Source Control panel.
+
+## Learning loop (every task)
+
+Each task is built by you, then explained back to you, so you learn the why as well as the how.
+
+```
+1. Read      the task's "Learn first" block and the spec section it points to (15–30 min)
+2. Branch    git switch -c <type>/<task-id>-<short-name>     e.g. feat/be-5-customers
+3. Build     follow the steps: failing test → code → passing test → commit
+4. Stuck?    paste the error or failing test to Claude: "stuck on BE-5 step 3"
+5. Note      write docs/learning/<TASK-ID>.md (template below), commit it with the task
+6. Walk      ask Claude "walkthrough <TASK-ID>" and paste your diff or the PR link
+7. Merge     open the PR, wait for green CI, merge, tick the task in this plan
+```
+
+**What a walkthrough gives you:**
+- your own code explained top to bottom: what each part does and why it's designed that way;
+- how it connects to the earlier and later tasks;
+- what to improve, if anything (a review, not a rewrite);
+- 3–5 interview questions on it, which you answer and I correct;
+- one sentence you can use in an interview to describe the task.
+
+**Learning note template (`docs/learning/<TASK-ID>.md`):**
+```markdown
+# <TASK-ID>: <title>
+## What I built
+2–3 sentences.
+## What I learned
+- concept → what it means in my own words
+## Check-yourself answers
+1. ...
+## What was hard / what I'd do differently
+## Interview line
+One sentence I'd say about this in an interview.
+```
+
+The notes live in the public repo. They show recruiters how you think, and they become your revision sheet before interviews.
+
+**Progress so far:**
+- GIT-1 is done: the repo `daily-loaf` exists, with the docs pushed.
+- DB-1: `docker-compose.yml` may already exist; finish the remaining steps.
 
 ## Global Constraints
 
@@ -65,16 +114,18 @@ All commands in code tasks run from the repo root unless a `cd` is shown. Commit
   - Presigned download URLs expire after 300 seconds.
 - **Mobile:**
   - Every screen works from 360px wide with no horizontal scroll.
-  - Bottom tab bar below 1024px (Tailwind `lg`), sidebar from 1024px.
-  - Tables become cards below 768px (`md`).
-  - Touch targets at least 44×44px (`min-h-11 min-w-11`).
+  - Bottom tab bar below 1024px, sidenav from 1024px (CDK `BreakpointObserver`, query `(min-width: 1024px)`).
+  - Tables become cards below 768px (CSS media query).
+  - Touch targets at least 44×44px (global `.touch` class).
   - Inputs use a font size of at least 16px (stops iOS from zooming in).
 - **Security:**
   - Never commit `.env`, `.tfvars`, Terraform state, connection strings or real customer data.
   - Tests and demo use Faker (`de_DE`, seed `42`) only.
+  - No fonts, icons or scripts from third-party CDNs (GDPR, CSP): install them as npm packages.
+  - Elasticsearch security is turned off only in the local Docker container, which is never exposed beyond your machine.
 - **Quality:**
   - Backend coverage of at least 85% (`--cov-fail-under=85`).
-  - ruff, mypy `--strict`, ESLint, Prettier and `tsc --noEmit` must all pass in CI.
+  - ruff, mypy `--strict`, angular-eslint, Prettier and `ng build` (strict templates) must all pass in CI.
 - **Region:**
   - AWS resources in `eu-central-1`.
   - Neon in AWS Europe Central 1 (Frankfurt).
@@ -100,7 +151,7 @@ All commands in code tasks run from the repo root unless a `cd` is shown. Commit
 | `STATEMENT_NOT_ISSUED` | 409 | Issue this bill before downloading it. |
 | `INTERNAL_ERROR` | 500 | Something went wrong. Reference: `<request id>` |
 
-### Billing-period lock (refines spec §7.4)
+### Billing-period lock (architecture §5.5)
 
 Months are tracked in a `billing_months` table (one row per generated month). Month M is **locked** for customer C if either of these is true:
 
@@ -128,7 +179,7 @@ When M is locked for C, the following are rejected with `PERIOD_LOCKED`:
 ```
 .github/workflows/      backend.yml, frontend.yml, security.yml, deploy-demo.yml, deploy-prod.yml
 .github/dependabot.yml
-docker-compose.yml      local Postgres 16 + MinIO (S3)
+docker-compose.yml      local Postgres 16 + MinIO (S3) + Elasticsearch
 backend/
   pyproject.toml  uv.lock  alembic.ini  Dockerfile  .env.example  openapi.json
   app/
@@ -151,23 +202,27 @@ backend/
     services/           customers.py, rates.py, orders.py, period_lock.py, payments.py,
                         statements.py, dashboard.py
     schemas/            common.py, customers.py, products.py, orders.py, payments.py,
-                        statements.py, dashboard.py
+                        statements.py, dashboard.py, search.py
     api/                deps.py, errors.py, middleware.py,
-                        routes/{health,me,customers,products,orders,payments,adjustments,statements,dashboard}.py
+                        routes/{health,me,customers,products,orders,payments,adjustments,statements,dashboard,search}.py
     pdf/                render.py, templates/bill.html
+    search/             mapping.py, base.py, documents.py, es_backend.py, pg_backend.py, sync.py, reindex.py
   migrations/           env.py, versions/
-  tests/                conftest.py, factories.py, unit/, api/, db/
+  tests/                conftest.py, factories.py, unit/, api/, db/, search/
 frontend/
-  package.json  vite.config.ts  playwright.config.ts  .env.example  index.html
-  src/
-    main.tsx  app/{router.tsx, providers.tsx}
-    api/{client.ts, schema.d.ts (generated), errors.ts}
-    auth/{auth.ts, AuthProvider.tsx, RequireAuth.tsx, LoginPage.tsx}
-    layout/{AppShell.tsx, Sidebar.tsx, BottomNav.tsx, DemoBanner.tsx, navItems.ts}
-    components/{ResponsiveList.tsx, QuantityStepper.tsx, MoneyInput.tsx, ConfirmDialog.tsx, ui/*}
-    lib/{money.ts, dates.ts}
-    features/{dashboard,customers,rates,orders,payments,bills}/  (api.ts + pages + tests)
-    test/{setup.ts, server.ts, handlers.ts}
+  angular.json  package.json  proxy.conf.json  playwright.config.ts
+  public/config.json    runtime config (one build, any environment)
+  src/main.ts  src/styles.scss
+  src/app/
+    app.ts  app.config.ts  app.routes.ts
+    core/config/        app-config.ts (AppConfig, APP_CONFIG, loadAppConfig)
+    core/api/           schema.d.ts (generated), api-types.ts, api-error.ts, error-messages.ts, interceptors.ts
+    core/auth/          auth-api.ts, amplify-auth-api.ts, dev-auth-api.ts, auth.service.ts, auth.guard.ts, login.page.ts
+    core/format/        money.ts, dates.ts, eur.pipe.ts, de-date.pipe.ts
+    layout/             shell.component.ts, more-sheet.component.ts, demo-banner.component.ts, nav-items.ts
+    shared/             responsive-list.component.ts, card-template.directive.ts, money-input.component.ts,
+                        quantity-stepper.component.ts, confirm.service.ts, confirm-dialog.component.ts, validators.ts
+    features/{dashboard,customers,rates,orders,payments,bills,search}/   (*.service.ts, *.page.ts, *.spec.ts)
   e2e/{full-flow.spec.ts, mobile-layout.spec.ts}
 infra/
   bootstrap/            state bucket + lock table
@@ -182,16 +237,30 @@ docs/superpowers/{specs,plans}/
 
 ### GIT-1: Create the GitHub repo and local project [MANUAL — VS Code]
 
+**Learn first**
+
+- **Concepts:**
+  - Git tracks snapshots (commits); GitHub hosts a copy (the remote, `origin`).
+  - `.gitignore` keeps secrets and generated files out of history for good.
+  - Commit identity (`user.name`, `user.email`) is per machine or per repo.
+- **Why it's built this way:** A public repo is your CV: clean history, no secrets, your own name on every commit.
+- **Read:** [Pro Git book, chapters 1–2](https://git-scm.com/book/en/v2)
+- **Check yourself** (answer these in your learning note):
+  1. What's the difference between `git add`, `git commit` and `git push`?
+  2. Why can't you just delete a leaked password in a later commit?
+- **After the task:** write `docs/learning/GIT-1.md`, then ask me for **"walkthrough GIT-1"**.
+
+
 - [ ] **Step 1: Install the tools**
   - Git, VS Code, Docker Desktop
   - uv (`pipx install uv` or the installer from docs.astral.sh/uv)
-  - Node 22 LTS (via fnm or nvm)
+  - Node 26 LTS (from nodejs.org)
   - Terraform ≥ 1.9
   - AWS CLI v2
 
   **VS Code extensions:**
   - Python, Pylance, Ruff
-  - ESLint, Prettier, Tailwind CSS IntelliSense
+  - Angular Language Service, ESLint, Prettier
   - Docker, HashiCorp Terraform
   - GitHub Pull Requests, GitHub Actions
 
@@ -208,7 +277,7 @@ docs/superpowers/{specs,plans}/
 - [ ] **Step 3: Create the repo on github.com**
   1. Click New repository.
   2. Name: `bread-order-app`. Visibility: Public.
-  3. Description: "Order, billing & payments app for a home bakery — React + FastAPI on AWS serverless".
+  3. Description: "Order, billing & payments app for a home bakery — Angular + FastAPI + Elasticsearch on AWS serverless".
   4. Tick "Add a README". License: MIT. .gitignore: None.
 
 - [ ] **Step 4: Clone in VS Code**
@@ -255,6 +324,20 @@ test-results/
 
 ### GIT-2: Protect `main` and switch on GitHub security [MANUAL — github.com, after BE-1 has pushed CI]
 
+**Learn first**
+
+- **Concepts:**
+  - Branch protection and rulesets force changes through pull requests.
+  - Required status checks block merges until CI is green.
+  - Secret scanning and push protection stop tokens reaching GitHub.
+- **Why it's built this way:** Teams work this way; showing it on a solo project tells recruiters you know team workflow.
+- **Read:** [About protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
+- **Check yourself** (answer these in your learning note):
+  1. Merge commit vs squash vs rebase merge: when would you pick each?
+  2. What is Dependabot for?
+- **After the task:** write `docs/learning/GIT-2.md`, then ask me for **"walkthrough GIT-2"**.
+
+
 - [ ] **Step 1: Turn on code security**
   In Settings → Code security, enable:
   - Dependency graph
@@ -275,7 +358,7 @@ test-results/
   - **Bypass list:** leave empty.
 
 - [ ] **Step 3: Add topics**
-  On the repo's About panel, add the topics `react`, `typescript`, `fastapi`, `python`, `aws`, `serverless`, `terraform`, `postgresql`.
+  On the repo's About panel, add the topics `angular`, `typescript`, `elasticsearch`, `docker`, `fastapi`, `python`, `aws`, `serverless`, `terraform`, `postgresql`.
 
 - [ ] **Step 4: Check the rules work**
   Try pushing directly to `main` from VS Code. It should be rejected. From now on, work on branches (e.g. `feat/be-2-platform`) and merge through pull requests.
@@ -285,6 +368,20 @@ test-results/
 # Group 2 — Database
 
 ### DB-1: Local Postgres and S3 with Docker Compose
+
+**Learn first**
+
+- **Concepts:**
+  - An image is a template; a container is a running instance of it.
+  - Compose starts several containers with networks, ports, volumes and health checks from one file.
+  - Named volumes keep data when containers are recreated.
+- **Why it's built this way:** Everyone (you, CI, a new teammate) gets the same Postgres and S3 with one command, without installing them.
+- **Read:** [Docker Compose overview](https://docs.docker.com/compose/)
+- **Check yourself** (answer these in your learning note):
+  1. What happens to the data if you run `docker compose down` vs `down -v`?
+  2. What does the port mapping `5432:5432` mean?
+- **After the task:** write `docs/learning/DB-1.md`, then ask me for **"walkthrough DB-1"**.
+
 
 **Files:**
 - Create: `docker-compose.yml`, `backend/.env.example`
@@ -306,7 +403,7 @@ test-results/
 ```
 ENVIRONMENT=local
 DATABASE_URL=postgresql+psycopg://bread:bread@localhost:5432/bread
-CORS_ORIGINS=["http://localhost:5173"]
+CORS_ORIGINS=["http://localhost:4200"]
 AUTH_MODE=dev
 COGNITO_ISSUER=
 COGNITO_CLIENT_ID=
@@ -330,6 +427,20 @@ git commit -m "chore: local postgres and minio via docker compose"
 ```
 
 ### DB-2: SQLAlchemy foundation, Alembic and test database fixtures
+
+**Learn first**
+
+- **Concepts:**
+  - SQLAlchemy ORM maps Python classes to tables; a Session is a unit of work.
+  - Alembic versions the schema as migration scripts.
+  - Test isolation: each test runs inside a transaction that is rolled back.
+- **Why it's built this way:** Migrations make schema changes reviewable and repeatable; rollback-per-test keeps tests fast and independent.
+- **Read:** [SQLAlchemy 2.0 ORM quickstart](https://docs.sqlalchemy.org/en/20/orm/quickstart.html) · [Alembic tutorial](https://alembic.sqlalchemy.org/en/latest/tutorial.html)
+- **Check yourself** (answer these in your learning note):
+  1. What does `session.commit()` do that `session.flush()` doesn't?
+  2. Why test against a real Postgres (Testcontainers) instead of SQLite?
+- **After the task:** write `docs/learning/DB-2.md`, then ask me for **"walkthrough DB-2"**.
+
 
 **Files:**
 - Create:
@@ -387,6 +498,20 @@ git commit -m "feat(db): sqlalchemy base, alembic and test database fixtures"
 ```
 
 ### DB-3: Tables and the initial migration
+
+**Learn first**
+
+- **Concepts:**
+  - Primary and foreign keys, UNIQUE and CHECK constraints.
+  - Postgres native enums.
+  - `ON DELETE CASCADE` for child rows; autogenerate then review migrations.
+- **Why it's built this way:** Constraints are the last line of defence: even buggy code can't store a quantity of 0 or two prices on one date.
+- **Read:** [PostgreSQL constraints](https://www.postgresql.org/docs/current/ddl-constraints.html)
+- **Check yourself** (answer these in your learning note):
+  1. Why store money as integer cents?
+  2. Why is `order_items.unit_price_cents` a copy instead of a join to `product_rates`?
+- **After the task:** write `docs/learning/DB-3.md`, then ask me for **"walkthrough DB-3"**.
+
 
 **Files:**
 - Create:
@@ -465,6 +590,18 @@ git commit -m "feat(db): schema for customers, products, rates, orders, payments
 
 ### DB-4: Seed products and initial rates
 
+**Learn first**
+
+- **Concepts:**
+  - Data migrations insert reference data, not just schema.
+  - `downgrade()` must undo exactly what `upgrade()` did.
+- **Why it's built this way:** Every environment (local, CI, demo, prod) gets the same five products automatically.
+- **Read:** [Alembic operations](https://alembic.sqlalchemy.org/en/latest/ops.html)
+- **Check yourself** (answer these in your learning note):
+  1. Why not insert the products from the app at startup instead?
+- **After the task:** write `docs/learning/DB-4.md`, then ask me for **"walkthrough DB-4"**.
+
+
 **Files:**
 - Create: `backend/migrations/versions/<rev>_seed_products.py` (a data migration)
 - Test: `backend/tests/db/test_seed.py`
@@ -502,9 +639,152 @@ git commit -m "feat(db): seed products and initial rates"
 
 ---
 
+### DB-5: Elasticsearch locally and the search index definition
+
+**Learn first**
+
+- **Concepts:**
+  - Inverted index, mappings and analyzers.
+  - `text` vs `keyword`; `nested` vs `object`.
+  - Index lifecycle: create, recreate, ensure.
+- **Why it's built this way:** An explicit mapping makes search predictable; the folding analyzer handles German umlauts.
+- **Read:** [Mapping](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html) · [Nested field type](https://www.elastic.co/guide/en/elasticsearch/reference/current/nested.html)
+- **Check yourself** (answer these in your learning note):
+  1. What would go wrong with order items if `items` were a plain `object`?
+  2. Why is `status` a `keyword` and not `text`?
+- **After the task:** write `docs/learning/DB-5.md`, then ask me for **"walkthrough DB-5"**.
+
+
+**Files:**
+- Modify: `docker-compose.yml`, `backend/.env.example`, `backend/pyproject.toml`, `backend/tests/conftest.py`
+- Create: `backend/app/search/__init__.py`, `backend/app/search/mapping.py`
+- Test: `backend/tests/search/test_mapping.py`
+
+**Interfaces:**
+- Produces:
+  - **`mapping.py`:**
+    - `INDEX_NAME = "daily-loaf-search"`
+    - `INDEX_BODY: dict[str, Any]`: the settings and mappings below.
+    - `ensure_index(es: Elasticsearch) -> None` creates the index if it is missing.
+    - `recreate_index(es: Elasticsearch) -> None` deletes it if present, then creates it.
+  - **Analyzer `folded`:** `standard` tokenizer, then the `lowercase` and `asciifolding` filters, so "Müller" matches "muller".
+  - **Fields:**
+
+    | Field | Type |
+    |---|---|
+    | `kind` | `keyword` (`customer` or `order`) |
+    | `entity_id`, `customer_id`, `total_cents` | `integer` |
+    | `customer_name` | `text` (analyzer `folded`) with a `keyword` sub-field `raw` |
+    | `customer_phone`, `notes` | `text` (analyzer `folded`) |
+    | `is_active` | `boolean` |
+    | `delivery_date` | `date` |
+    | `month`, `status`, `source` | `keyword` |
+    | `items` | `nested`: `product_code` (`keyword`), `product_name` (`text`, `folded`), `quantity` (`integer`) |
+
+  - **Test fixture `es_url`** (session scope): a Testcontainers Elasticsearch container with security off, single node and a 1 GB memory limit.
+  - **Settings** (in `app/config.py`):
+    - `search_backend: Literal["elasticsearch", "postgres"] = "postgres"`
+    - `elasticsearch_url: str | None = None`
+    - A validator raises if `search_backend == "elasticsearch"` and `elasticsearch_url` is empty.
+
+- [ ] **Step 1: Add Elasticsearch to `docker-compose.yml`**
+  Add this service and a named volume `esdata`:
+```yaml
+  search:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.1.0
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      retries: 12
+```
+  Use the newest `9.x` tag from elastic.co if a later one exists. Pin the same version everywhere it appears (here and in the test fixture).
+
+  Security is off **for local use only**. Port 9200 is reachable only from your own machine.
+
+- [ ] **Step 2: Add the local settings to `backend/.env.example`**
+```
+SEARCH_BACKEND=elasticsearch
+ELASTICSEARCH_URL=http://localhost:9200
+```
+
+- [ ] **Step 3: Start it and check it**
+  Run: `docker compose up -d search && curl -s localhost:9200/_cluster/health`
+  Expected: JSON with `"status":"green"` or `"yellow"`. Yellow is normal for a single node.
+
+  If it exits immediately, raise Docker Desktop's memory to at least 4 GB (Settings → Resources).
+
+- [ ] **Step 4: Add the dependencies**
+  Run: `cd backend && uv add "elasticsearch>=9,<10" && uv add --dev "testcontainers[elasticsearch]"`
+
+  The client's major version must match the server's.
+
+- [ ] **Step 5: Write the failing tests**
+```python
+def test_index_created_with_mapping(es_url):
+    es = Elasticsearch(es_url)
+    recreate_index(es)
+    props = es.indices.get_mapping(index=INDEX_NAME)[INDEX_NAME]["mappings"]["properties"]
+    assert props["items"]["type"] == "nested"
+    assert props["status"]["type"] == "keyword"
+    assert props["customer_name"]["fields"]["raw"]["type"] == "keyword"
+
+def test_folding_analyzer(es_url):
+    es = Elasticsearch(es_url); recreate_index(es)
+    tokens = es.indices.analyze(index=INDEX_NAME, analyzer="folded", text="Müller Bäckerei")["tokens"]
+    assert [t["token"] for t in tokens] == ["muller", "backerei"]
+
+def test_ensure_index_is_idempotent(es_url):
+    es = Elasticsearch(es_url); ensure_index(es); ensure_index(es)
+    assert es.indices.exists(index=INDEX_NAME)
+
+def test_elasticsearch_needs_url():
+    with pytest.raises(ValidationError):
+        Settings(search_backend="elasticsearch", elasticsearch_url=None, ...)
+```
+
+- [ ] **Step 6: Run the tests to verify they fail**
+  Run: `cd backend && uv run pytest tests/search/test_mapping.py -v`
+  Expected: FAIL (import errors).
+
+- [ ] **Step 7: Implement `mapping.py`, the settings and the fixture**
+
+- [ ] **Step 8: Run the tests to verify they pass**
+  Run: `cd backend && uv run pytest -v`
+  Expected: PASS. The first run downloads the image, which is slow.
+
+- [ ] **Step 9: Commit**
+```bash
+git add docker-compose.yml backend
+git commit -m "feat(search): local elasticsearch and search index mapping"
+```
+
+---
+
 # Group 3 — Backend
 
 ### BE-1: Backend scaffold, tooling and CI
+
+**Learn first**
+
+- **Concepts:**
+  - FastAPI app factory (`create_app`) and routers.
+  - Settings from environment variables with pydantic-settings.
+  - uv for dependencies and lock files; ruff and mypy for quality; CI on every PR.
+- **Why it's built this way:** An app factory lets tests build the app with fake dependencies; CI catches problems before merge.
+- **Read:** [FastAPI tutorial: first steps](https://fastapi.tiangolo.com/tutorial/first-steps/) · [GitHub Actions quickstart](https://docs.github.com/en/actions/writing-workflows/quickstart)
+- **Check yourself** (answer these in your learning note):
+  1. What does `uv.lock` guarantee?
+  2. Why does the health endpoint need no login?
+- **After the task:** write `docs/learning/BE-1.md`, then ask me for **"walkthrough BE-1"**.
+
 
 **Files:**
 - Create:
@@ -554,7 +834,7 @@ def test_health_ok(anon_client):
     assert r.status_code == 200 and r.json() == {"status": "ok"}
 ```
   In `conftest.py`:
-  - `test_settings` returns a `Settings` with `environment="local"`, `cors_origins=["http://localhost:5173"]`, `cognito_issuer="https://cognito-idp.eu-central-1.amazonaws.com/test-pool"`, `cognito_client_id="test-client"`, `bills_bucket="test-bills"`, `business_name="Test Bakery"`, `business_address="Teststraße 1, 60311 Frankfurt"`, and `database_url` from `pg_url` (until DB-2, use `"postgresql+psycopg://unused"`).
+  - `test_settings` returns a `Settings` with `environment="local"`, `cors_origins=["http://localhost:4200"]`, `cognito_issuer="https://cognito-idp.eu-central-1.amazonaws.com/test-pool"`, `cognito_client_id="test-client"`, `bills_bucket="test-bills"`, `business_name="Test Bakery"`, `business_address="Teststraße 1, 60311 Frankfurt"`, and `database_url` from `pg_url` (until DB-2, use `"postgresql+psycopg://unused"`).
   - `anon_client` is a `TestClient(create_app(test_settings))`.
 
 - [ ] **Step 3: Run it to verify it fails, then implement `config.py`, `main.py` and `health.py`**
@@ -606,6 +886,20 @@ git push -u origin chore/be-1-scaffold
   Open a pull request and merge it once `backend` and `security` are green. Then do **GIT-2**.
 
 ### BE-2: Platform — clock, money, errors, request IDs and logging
+
+**Learn first**
+
+- **Concepts:**
+  - Time zones: store dates in Berlin time, not UTC.
+  - Domain errors vs HTTP errors; one error format.
+  - Middleware and context variables for request IDs; structured JSON logs.
+- **Why it's built this way:** Consistent errors let the frontend show the right message; a request ID connects a user's error to a log line.
+- **Read:** [FastAPI: handling errors](https://fastapi.tiangolo.com/tutorial/handling-errors/) · [Python zoneinfo](https://docs.python.org/3/library/zoneinfo.html)
+- **Check yourself** (answer these in your learning note):
+  1. Why did 23:30 UTC on 3 November count as 4 November?
+  2. Why must a 500 response never include the exception text?
+- **After the task:** write `docs/learning/BE-2.md`, then ask me for **"walkthrough BE-2"**.
+
 
 **Files:**
 - Create:
@@ -700,6 +994,20 @@ git commit -m "feat(backend): berlin clock, euro formatting, error format, reque
 
 ### BE-3: Authentication (Cognito access tokens, local dev mode)
 
+**Learn first**
+
+- **Concepts:**
+  - JWT structure: header, payload, signature.
+  - Verifying with a JWKS public key; checking issuer, expiry and token use.
+  - FastAPI dependencies (`Depends`).
+- **Why it's built this way:** The API trusts nothing from the browser except a token Cognito signed; dev mode is impossible outside local.
+- **Read:** [Verifying a Cognito JWT](https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-tokens-verifying-a-jwt.html) · [PyJWT usage](https://pyjwt.readthedocs.io/en/stable/usage.html)
+- **Check yourself** (answer these in your learning note):
+  1. Access token vs ID token: which one does an API accept, and why?
+  2. Where does the public key come from, and why can't an attacker forge a token?
+- **After the task:** write `docs/learning/BE-3.md`, then ask me for **"walkthrough BE-3"**.
+
+
 **Files:**
 - Create:
   - `backend/app/auth.py`
@@ -783,6 +1091,20 @@ git commit -m "feat(backend): cognito access-token verification and local dev au
 
 ### BE-4: Pure business rules
 
+**Learn first**
+
+- **Concepts:**
+  - Pure functions: no I/O, same input gives the same output.
+  - State machines for order status.
+  - Test-driven development: red, green, refactor.
+- **Why it's built this way:** The most important rules (prices, status, money) are the easiest to test and change.
+- **Read:** [pytest: get started](https://docs.pytest.org/en/stable/getting-started.html) · [pytest parametrize](https://docs.pytest.org/en/stable/how-to/parametrize.html)
+- **Check yourself** (answer these in your learning note):
+  1. Why keep these modules free of database imports?
+  2. Which transitions are allowed, and how does the test prove the rest are not?
+- **After the task:** write `docs/learning/BE-4.md`, then ask me for **"walkthrough BE-4"**.
+
+
 **Files:**
 - Create:
   - `backend/app/domain/pricing.py`
@@ -854,6 +1176,20 @@ git commit -m "feat(domain): rate lookup, order status rules, statement maths"
 ```
 
 ### BE-5: Customers API
+
+**Learn first**
+
+- **Concepts:**
+  - REST resources and status codes (201, 404, 409, 422).
+  - Pydantic request and response models.
+  - Layers: route → service → repository.
+- **Why it's built this way:** Thin routes and testable services; soft delete and anonymisation instead of hard deletes keep bills intact (GDPR).
+- **Read:** [FastAPI: request body](https://fastapi.tiangolo.com/tutorial/body/) · [Pydantic models](https://docs.pydantic.dev/latest/concepts/models/)
+- **Check yourself** (answer these in your learning note):
+  1. Why `POST /customers/{id}/deactivate` instead of `DELETE`?
+  2. Why can't an anonymised customer be reactivated?
+- **After the task:** write `docs/learning/BE-5.md`, then ask me for **"walkthrough BE-5"**.
+
 
 **Files:**
 - Create:
@@ -941,6 +1277,20 @@ git commit -m "feat(api): customers CRUD, deactivate and anonymise"
 
 ### BE-6: Products and rates API
 
+**Learn first**
+
+- **Concepts:**
+  - Effective-dated data (a price valid from a date).
+  - Handling unique-constraint violations as a 409.
+  - Query parameters with defaults.
+- **Why it's built this way:** Rates change over time without touching old orders; the database guarantees one price per product per date.
+- **Read:** [FastAPI: query parameters](https://fastapi.tiangolo.com/tutorial/query-params/)
+- **Check yourself** (answer these in your learning note):
+  1. How does the query find the rate for a given date?
+  2. Why use a savepoint around the insert?
+- **After the task:** write `docs/learning/BE-6.md`, then ask me for **"walkthrough BE-6"**.
+
+
 **Files:**
 - Create:
   - `backend/app/schemas/products.py`
@@ -1007,6 +1357,21 @@ git commit -m "feat(api): products with price for a date, rate history, new rate
 ```
 
 ### BE-7: Orders API and the billing-period lock
+
+**Learn first**
+
+- **Concepts:**
+  - Aggregates: an order and its items saved together in one transaction.
+  - Snapshot pricing.
+  - Business invariants enforced in services (period lock).
+  - Avoiding N+1 queries with `selectinload`.
+- **Why it's built this way:** The order is the heart of the app; every rule from the spec meets here, so the tests are the most thorough.
+- **Read:** [SQLAlchemy relationship loading](https://docs.sqlalchemy.org/en/20/orm/queryguide/relationships.html)
+- **Check yourself** (answer these in your learning note):
+  1. What is an N+1 query and how do you spot it?
+  2. Why reject a delivery into a locked month instead of silently moving it?
+- **After the task:** write `docs/learning/BE-7.md`, then ask me for **"walkthrough BE-7"**.
+
 
 **Files:**
 - Create:
@@ -1132,6 +1497,19 @@ git commit -m "feat(api): orders with price snapshots, status workflow and billi
 
 ### BE-8: Payments and adjustments API
 
+**Learn first**
+
+- **Concepts:**
+  - Validation that depends on 'today' (no future payments).
+  - Reusing a guard (`assert_period_open`) across services.
+- **Why it's built this way:** One lock rule, used everywhere, so bills can never change after they're issued.
+- **Read:** [Pydantic validators](https://docs.pydantic.dev/latest/concepts/validators/)
+- **Check yourself** (answer these in your learning note):
+  1. Why are payments for inactive customers allowed?
+  2. What is an adjustment, and why is it the only way to correct an issued month?
+- **After the task:** write `docs/learning/BE-8.md`, then ask me for **"walkthrough BE-8"**.
+
+
 **Files:**
 - Create:
   - `backend/app/schemas/payments.py`
@@ -1203,6 +1581,20 @@ git commit -m "feat(api): payments and adjustments with period lock"
 ```
 
 ### BE-9: Monthly statements (generate, list, balances)
+
+**Learn first**
+
+- **Concepts:**
+  - SQL aggregation with `GROUP BY` and `SUM`.
+  - Running balances and carry-forward.
+  - Idempotent regeneration of drafts.
+- **Why it's built this way:** One query per kind instead of one per customer keeps it fast; months in sequence mean nothing is skipped.
+- **Read:** [PostgreSQL aggregate functions](https://www.postgresql.org/docs/current/functions-aggregate.html)
+- **Check yourself** (answer these in your learning note):
+  1. Walk through the carry-forward example in the architecture §5.4.
+  2. Why does generating November require October to be fully issued?
+- **After the task:** write `docs/learning/BE-9.md`, then ask me for **"walkthrough BE-9"**.
+
 
 **Files:**
 - Create:
@@ -1309,6 +1701,20 @@ git commit -m "feat(api): monthly statement generation, carry-forward and balanc
 
 ### BE-10: PDF bills, issuing and download
 
+**Learn first**
+
+- **Concepts:**
+  - HTML-to-PDF rendering with Jinja2 and WeasyPrint.
+  - Object storage and presigned URLs.
+  - Testing AWS code with moto.
+- **Why it's built this way:** PDFs are created once at issue and never change; short-lived links mean the bucket stays private.
+- **Read:** [WeasyPrint tutorial](https://doc.courtbouillon.org/weasyprint/stable/first_steps.html) · [S3 presigned URLs](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/s3-presigned-urls.html)
+- **Check yourself** (answer these in your learning note):
+  1. Why does the link expire after 5 minutes?
+  2. Why must issuing wait until the month has ended?
+- **After the task:** write `docs/learning/BE-10.md`, then ask me for **"walkthrough BE-10"**.
+
+
 **Files:**
 - Create:
   - `backend/app/pdf/render.py`
@@ -1398,6 +1804,18 @@ git commit -m "feat(api): PDF bills, issuing locks the month, presigned download
 
 ### BE-11: Dashboard API
 
+**Learn first**
+
+- **Concepts:**
+  - Read models: an endpoint shaped for one screen.
+  - Combining several queries into one response.
+- **Why it's built this way:** The dashboard answers the morning question 'what do I bake today?' in one request.
+- **Read:** [FastAPI: response model](https://fastapi.tiangolo.com/tutorial/response-model/)
+- **Check yourself** (answer these in your learning note):
+  1. Why are cancelled orders excluded from baking totals but counted in the status chips?
+- **After the task:** write `docs/learning/BE-11.md`, then ask me for **"walkthrough BE-11"**.
+
+
 **Files:**
 - Create:
   - `backend/app/schemas/dashboard.py`
@@ -1448,6 +1866,20 @@ git commit -m "feat(api): dashboard with Berlin-day baking totals and outstandin
 ```
 
 ### BE-12: Lambda packaging, secrets, demo seed and OpenAPI export
+
+**Learn first**
+
+- **Concepts:**
+  - Serverless: Lambda with a container image, the Mangum adapter.
+  - Secrets from SSM at cold start.
+  - OpenAPI as a contract between backend and frontend.
+- **Why it's built this way:** The same app runs locally with uvicorn and on Lambda; the exported schema keeps frontend types in sync.
+- **Read:** [Lambda container images](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html) · [Mangum](https://github.com/Kludex/mangum)
+- **Check yourself** (answer these in your learning note):
+  1. What is a cold start and why read secrets then?
+  2. Why fail CI when `openapi.json` changes without being committed?
+- **After the task:** write `docs/learning/BE-12.md`, then ask me for **"walkthrough BE-12"**.
+
 
 **Files:**
 - Create:
@@ -1538,117 +1970,397 @@ git commit -m "feat(backend): lambda container, ssm secrets, demo seed, openapi 
 
 ---
 
-# Group 4 — Frontend
+### BE-13: Search API, index sync and the Postgres fallback
 
-### FE-1: Frontend scaffold, tooling and CI
+**Learn first**
+
+- **Concepts:**
+  - Adapter pattern: one interface, two implementations.
+  - Contract tests run against both.
+  - Eventual consistency: index after commit, reindex to repair.
+  - Full-text queries, fuzziness, nested aggregations, highlighting.
+- **Why it's built this way:** Elasticsearch on your laptop, free Postgres on AWS, same behaviour; writes never fail because search is down.
+- **Read:** [Full-text queries](https://www.elastic.co/guide/en/elasticsearch/reference/current/full-text-queries.html) · [Aggregations](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations.html)
+- **Check yourself** (answer these in your learning note):
+  1. Why is Postgres the source of truth and not Elasticsearch?
+  2. What does the HTML encoder in highlighting protect against?
+- **After the task:** write `docs/learning/BE-13.md`, then ask me for **"walkthrough BE-13"**.
+
 
 **Files:**
 - Create:
-  - `frontend/` (via Vite)
-  - `frontend/.env.example`
-  - `frontend/src/test/{setup.ts,server.ts,handlers.ts}`
-  - `frontend/src/app/App.test.tsx`
+  - `backend/app/search/base.py`
+  - `backend/app/search/documents.py`
+  - `backend/app/search/es_backend.py`
+  - `backend/app/search/pg_backend.py`
+  - `backend/app/search/sync.py`
+  - `backend/app/search/reindex.py`
+  - `backend/app/schemas/search.py`
+  - `backend/app/api/routes/search.py`
+- Modify:
+  - `backend/app/db.py` (`get_session`)
+  - `backend/app/main.py` (`create_app` gains `search_backend`)
+  - `backend/app/services/customers.py`, `backend/app/services/orders.py` (call `mark_dirty`)
+  - `backend/app/seed_demo.py` (rebuild the index after seeding)
+  - `backend/tests/conftest.py`
+- Test: `backend/tests/search/test_search_contract.py`, `backend/tests/search/test_sync.py`
+
+**Interfaces:**
+- Consumes: `INDEX_NAME`, `ensure_index`, `recreate_index` (DB-5); `Customer`, `Order` models (DB-3); `parse_month`, `format_month` (BE-2).
+- Produces:
+  - **`schemas/search.py`:**
+    - `DocKind = Literal["customer", "order"]`
+    - `SearchQuery {q: str = "" (max 200, stripped), kind: DocKind | None, status: OrderStatus | None, month: str | None ("YYYY-MM"), limit: int = 20 (1–50)}`
+    - `SearchHit {kind, id, title, subtitle, delivery_date: date | None, status: OrderStatus | None, total_cents: int | None, highlight: str | None}`
+      - A customer hit has title = name and subtitle = phone.
+      - An order hit has title `"Order #<id> · <customer name>"` and subtitle = the item summary `"20× Mini pav, 10× Medium pav"`.
+    - `ProductTotal {product_code, product_name, quantity}`
+    - `SearchResult {total: int, hits: list[SearchHit], facets: {kind: dict[str, int], status: dict[str, int], month: dict[str, int]}, product_totals: list[ProductTotal]}`
+    - `product_totals` covers only the matching **orders**, ordered by product `sort_order`.
+  - **`base.py`:** `class SearchBackend(Protocol)` with:
+    - `index_customer(self, session: Session, customer: Customer) -> None`. It also re-indexes that customer's orders, because the orders carry the customer's name and phone.
+    - `index_order(self, order: Order) -> None`
+    - `search(self, session: Session, query: SearchQuery) -> SearchResult`
+    - `rebuild(self, session: Session) -> int` returns the number of documents indexed.
+  - **`documents.py`:** `customer_doc(c: Customer) -> dict` and `order_doc(o: Order) -> dict`, following the DB-5 fields. Document IDs are `customer-<id>` and `order-<id>`.
+  - **`es_backend.py`:** `ElasticsearchBackend(es: Elasticsearch)`.
+    - **Query:**
+      - `bool.should` of a `multi_match` on `customer_name^3`, `customer_phone` and `notes` (`fuzziness: "AUTO"`), plus a `nested` `match` on `items.product_name`.
+      - `minimum_should_match: 1`.
+      - `match_all` when `q` is empty.
+      - Filters are `term` queries.
+    - **Aggregations:**
+      - `terms` on `kind`, `status` and `month` (size 24);
+      - `nested` on `items`, then `terms` on `items.product_code`, then `sum` of `items.quantity`.
+    - **Highlight:** on `customer_name` and `notes`, with `encoder: "html"`, so text from the database is escaped and only `<em>` tags are added.
+    - Writes use `refresh="wait_for"`, so a change is searchable as soon as the request returns.
+  - **`pg_backend.py`:** `PostgresBackend()`.
+    - The index methods do nothing, and `rebuild` returns 0.
+    - `search` uses `ILIKE '%q%'` on customer name, phone and notes, plus `EXISTS` on product names.
+    - Facets are `GROUP BY` counts, and product totals are `SUM(quantity)`.
+    - It returns the same `SearchResult` shape, with `highlight=None`.
+  - **`sync.py`:**
+    - `mark_dirty(session: Session, kind: DocKind, entity_id: int) -> None` adds the ID to `session.info["search_dirty"]`.
+    - `apply_pending(session: Session, backend: SearchBackend) -> None` loads each dirty entity and indexes it. It catches **every** exception and logs a warning `search_sync_failed` with the kind and ID. It never raises.
+  - **`get_session`** now calls `apply_pending(session, request.app.state.search)` after a successful commit.
+  - **Calls to `mark_dirty`:**
+    - **Customers** (BE-5): create, update, deactivate, activate and anonymise.
+    - **Orders** (BE-7): create, update and status change.
+  - **`create_app(..., search_backend: SearchBackend | None = None)`.** The default comes from settings:
+    - `elasticsearch` gives an `ElasticsearchBackend` (and calls `ensure_index` at startup);
+    - `postgres` gives a `PostgresBackend`.
+  - **Routes:**
+    - `GET /search` with `SearchQuery` as query parameters returns `SearchResult`.
+    - `POST /search/reindex` returns `{"indexed": int}`. It calls `recreate_index` and then indexes everything.
+  - **`reindex.py`:** `python -m app.search.reindex` runs the same rebuild from the command line.
+  - **Test fixtures:**
+    - `search_client`: parametrised over `["postgres", "elasticsearch"]`. Each run builds a `client` with that backend. For Elasticsearch it calls `recreate_index` first.
+    - `es_client`: the Elasticsearch variant only.
+
+- [ ] **Step 1: Write the failing contract tests** (each runs once per backend)
+```python
+def seed(client, session):
+    asha = make_customer(session, name="Asha Patil")
+    ravi = make_customer(session, name="Ravi Kumar")
+    for c in (asha, ravi):
+        client.patch(f"/api/v1/customers/{c.id}", json={"notes": "Weekend regular"})  # marks dirty via API
+    o1 = client.post("/api/v1/orders", json={"customer_id": asha.id, "delivery_date": "2026-11-05",
+        "items": [{"product_id": product_id(session, "MINI_PAV"), "quantity": 20}]}).json()
+    client.post("/api/v1/orders", json={"customer_id": asha.id, "delivery_date": "2026-10-20",
+        "items": [{"product_id": product_id(session, "MINI_PAV"), "quantity": 10},
+                  {"product_id": product_id(session, "ROTI"), "quantity": 5}]})
+    client.post("/api/v1/orders", json={"customer_id": ravi.id, "delivery_date": "2026-11-06",
+        "items": [{"product_id": product_id(session, "BROWNIE"), "quantity": 4}]})
+    return asha, ravi, o1
+
+def test_finds_customer_and_their_orders(search_client, session):
+    asha, *_ = seed(search_client, session)
+    r = search_client.get("/api/v1/search?q=asha").json()
+    assert r["facets"]["kind"] == {"customer": 1, "order": 2}
+    assert {h["title"] for h in r["hits"] if h["kind"] == "customer"} == {"Asha Patil"}
+
+def test_finds_orders_by_product(search_client, session):
+    seed(search_client, session)
+    r = search_client.get("/api/v1/search?q=brownie&kind=order").json()
+    assert [h["subtitle"] for h in r["hits"]] == ["4× Brownie"]
+
+def test_filters_and_product_totals(search_client, session):
+    seed(search_client, session)
+    r = search_client.get("/api/v1/search?q=asha&kind=order&month=2026-11").json()
+    assert r["total"] == 1
+    r = search_client.get("/api/v1/search?kind=order").json()
+    assert [(p["product_code"], p["quantity"]) for p in r["product_totals"]] == [
+        ("MINI_PAV", 30), ("BROWNIE", 4), ("ROTI", 5)]
+    assert r["facets"]["month"] == {"2026-11": 2, "2026-10": 1}
+
+def test_anonymised_customer_not_findable(search_client, session):
+    asha, *_ = seed(search_client, session)
+    search_client.post(f"/api/v1/customers/{asha.id}/anonymise")
+    assert search_client.get("/api/v1/search?q=asha").json()["total"] == 0
+
+def test_status_change_is_searchable(search_client, session):
+    _, _, o1 = seed(search_client, session)
+    search_client.post(f"/api/v1/orders/{o1['id']}/status", json={"status": "confirmed"})
+    assert search_client.get("/api/v1/search?status=confirmed").json()["total"] == 1
+
+def test_bad_params(search_client):
+    assert search_client.get("/api/v1/search?month=2026-13").json()["error"]["field"] == "month"
+    assert search_client.get("/api/v1/search?limit=500").status_code == 422
+```
+  Product totals are ordered by `sort_order`: Mini pav (1), Brownie (4), Roti (5).
+
+- [ ] **Step 2: Write the failing Elasticsearch-only and sync tests**
+```python
+def test_typo_tolerance(es_client, session):           # Elasticsearch only
+    seed(es_client, session)
+    assert any(h["title"] == "Asha Patil" for h in es_client.get("/api/v1/search?q=ahsa").json()["hits"])
+
+def test_highlight_is_escaped(es_client, session):
+    es_client.post("/api/v1/customers", json={"name": "<script>x</script> Asha"})
+    h = es_client.get("/api/v1/search?q=asha").json()["hits"][0]["highlight"]
+    assert "<script>" not in h and "&lt;script&gt;" in h and "<em>" in h
+
+def test_index_down_does_not_block_writes(client_with_dead_es, caplog):
+    r = client_with_dead_es.post("/api/v1/customers", json={"name": "Asha"})
+    assert r.status_code == 201
+    assert "search_sync_failed" in caplog.text
+
+def test_reindex_rebuilds(es_client, session, es_url):
+    seed(es_client, session)
+    Elasticsearch(es_url).indices.delete(index=INDEX_NAME)
+    assert es_client.post("/api/v1/search/reindex").json()["indexed"] == 5   # 2 customers + 3 orders
+    assert es_client.get("/api/v1/search?q=asha").json()["total"] == 3
+```
+  `client_with_dead_es` uses `ElasticsearchBackend(Elasticsearch("http://localhost:1", request_timeout=1))`.
+
+- [ ] **Step 3: Run the tests to verify they fail**
+  Run: `cd backend && uv run pytest tests/search -v`
+  Expected: FAIL.
+
+- [ ] **Step 4: Implement the interfaces above**
+  Start with `PostgresBackend` until the contract tests pass for `postgres`, then add `ElasticsearchBackend`.
+  Map aggregation buckets to the same dict shape in both backends; leave out empty buckets.
+
+- [ ] **Step 5: Run the tests to verify they pass**
+  Run: `cd backend && uv run pytest -v`
+  Expected: PASS, with coverage still at least 85%.
+
+- [ ] **Step 6: Regenerate the API schema and update the README**
+  - Run `uv run python -m app.export_openapi`.
+  - In the README, add "Search locally: `docker compose up -d search`, then `uv run python -m app.search.reindex`".
+  - Also note in the README that deployed environments use the Postgres search backend.
+
+- [ ] **Step 7: Commit**
+```bash
+git add backend README.md
+git commit -m "feat(search): search API with facets, elasticsearch sync and postgres fallback"
+```
+
+---
+
+# Group 4 — Frontend (Angular)
+
+**Conventions for every frontend task:**
+- **Components:** standalone only (no NgModules), `ChangeDetectionStrategy.OnPush`, signals for component state, `inject()` instead of constructor injection, and built-in control flow (`@if`, `@for` with `track`).
+- **Services:** return `Observable`s from `HttpClient`. Components turn them into signals with `toSignal`, or use the `async` pipe.
+- **Pages:** lazy-loaded with `loadComponent`.
+- **Unit tests:**
+  - Components are tested with Angular Testing Library (`render`, `screen`, `userEvent`).
+  - HTTP is tested with `provideHttpClient()` plus `provideHttpClientTesting()` and `HttpTestingController`.
+  - Every spec ends with `httpMock.verify()`.
+- **Paths:** all under `frontend/src/app/` unless stated otherwise.
+
+### FE-1: Angular scaffold, Material, tooling and CI
+
+**Learn first**
+
+- **Concepts:**
+  - Angular CLI workspace, standalone components, strict mode.
+  - Angular Material themes; self-hosted fonts.
+  - Frontend CI: lint, test, build.
+- **Why it's built this way:** Strict templates catch errors at build time; no Google Fonts avoids a known GDPR problem in Germany.
+- **Read:** [Angular: installation](https://angular.dev/installation) · [Angular Material: getting started](https://material.angular.dev/guide/getting-started)
+- **Check yourself** (answer these in your learning note):
+  1. What does `strictTemplates` check?
+  2. Why proxy `/api` in development instead of enabling CORS?
+- **After the task:** write `docs/learning/FE-1.md`, then ask me for **"walkthrough FE-1"**.
+
+
+**Files:**
+- Create:
+  - `frontend/` (Angular CLI)
+  - `frontend/proxy.conf.json`
+  - `frontend/public/config.json`
+  - `frontend/.prettierrc`
   - `.github/workflows/frontend.yml`
+- Test: `frontend/src/app/app.spec.ts`
 
 **Interfaces:**
 - Produces:
-  - **npm scripts:** `dev`, `build`, `preview`, `test` (`vitest run --coverage`), `lint` (`eslint .`), `format:check` (`prettier --check .`), `typecheck` (`tsc -b --noEmit`), `gen:api` (`openapi-typescript ../backend/openapi.json -o src/api/schema.d.ts`), `e2e` (`playwright test`).
-  - **Environment variables:**
-    - `VITE_API_BASE_URL` (default `/api/v1`)
-    - `VITE_AUTH_MODE` (`cognito` | `dev`)
-    - `VITE_COGNITO_USER_POOL_ID`
-    - `VITE_COGNITO_CLIENT_ID`
-    - `VITE_DEMO` (`"true"` | `"false"`)
-  - **Vite dev proxy:** `/api` → `http://localhost:8000`.
-  - **MSW:** `server` is used in `setup.ts` with `onUnhandledRequest: "error"`.
+  - **npm scripts:**
 
-- [ ] **Step 1: Create the project and add dependencies**
-  - Run `npm create vite@latest frontend -- --template react-ts`.
-  - Add: `react-router`, `@tanstack/react-query`, `react-hook-form`, `zod`, `@hookform/resolvers`, `openapi-fetch`, `aws-amplify`, `qrcode.react`, `date-fns`, `date-fns-tz`, `clsx`, `tailwind-merge`, `lucide-react`.
-  - Add dev dependencies: `tailwindcss`, `@tailwindcss/vite`, `vitest`, `@vitest/coverage-v8`, `jsdom`, `@testing-library/react`, `@testing-library/user-event`, `@testing-library/jest-dom`, `msw`, `openapi-typescript`, `prettier`, `eslint-plugin-jsx-a11y`, `@playwright/test`.
-  - Run `npx shadcn@latest init`, then add the components: `button`, `input`, `label`, `card`, `badge`, `dialog`, `sheet`, `select`, `table`, `sonner`, `form`, `command`, `popover`, `calendar`, `tabs`, `dropdown-menu`.
-  - In `tsconfig`, set `"strict": true` and `"noUncheckedIndexedAccess": true`.
-  - In the base CSS, set `html { -webkit-text-size-adjust: 100%; }` and make inputs use `text-base` (16px).
+    | Script | Runs |
+    |---|---|
+    | `start` | `ng serve --proxy-config proxy.conf.json` |
+    | `build` | `ng build` |
+    | `test` | `ng test --no-watch --coverage` |
+    | `lint` | `ng lint` |
+    | `format:check` | `prettier --check "src/**/*.{ts,html,scss}"` |
+    | `gen:api` | `openapi-typescript ../backend/openapi.json -o src/app/core/api/schema.d.ts` |
+    | `e2e` | `playwright test` |
 
-- [ ] **Step 2: Write the failing smoke test**
-```tsx
-test("renders app title", () => {
-  render(<App />);
-  expect(screen.getByRole("heading", { name: "Bread Orders" })).toBeInTheDocument();
+  - **Dev proxy (`proxy.conf.json`):** `{"/api": {"target": "http://localhost:8000", "secure": false}}`.
+  - **Build output:** `dist/frontend/browser/`.
+  - **Local runtime config (`public/config.json`):**
+```json
+{ "apiBaseUrl": "/api/v1", "authMode": "dev", "cognitoUserPoolId": "", "cognitoClientId": "", "demo": false }
+```
+
+- [ ] **Step 1: Create the project**
+  - Run from the repo root: `npx @angular/cli@latest new frontend --routing --style=scss --ssr=false --skip-git`.
+  - If the CLI asks for a test runner, choose **Vitest**.
+  - Keep the default strict mode: `strict`, `strictTemplates` and `strictInjectionParameters` must be `true` in `tsconfig.json`.
+
+- [ ] **Step 2: Add libraries**
+  - **Angular Material:** run `cd frontend && npx ng add @angular/material`.
+    - Pick a theme.
+    - Answer **No** to "global typography" and the Google Fonts links (GDPR, see below).
+  - **Fonts and icons, self-hosted:**
+    - Run `npm i @fontsource/roboto material-symbols`.
+    - Import them in `src/styles.scss`.
+    - Remove any `fonts.googleapis.com` links from `index.html`.
+
+    In Germany, loading Google Fonts from Google's servers has been ruled a GDPR violation (LG München, 2022), and the CSP from AWS-4 would block them anyway.
+  - **Linting:** run `npx ng add @angular-eslint/schematics`.
+  - **Runtime dependencies:** `npm i aws-amplify angularx-qrcode date-fns date-fns-tz`.
+  - **Dev dependencies:** `npm i -D @testing-library/angular @testing-library/user-event @testing-library/jest-dom openapi-typescript prettier @playwright/test`.
+
+- [ ] **Step 3: Global styles for phones**
+  In `src/styles.scss`:
+  - set `html { -webkit-text-size-adjust: 100%; }`;
+  - set the font size of `input, select, textarea` to `16px` (stops iOS zooming in);
+  - add `.touch { min-width: 44px; min-height: 44px; }`.
+
+- [ ] **Step 4: Write the failing smoke test**
+```ts
+it("shows the app title", async () => {
+  await render(App);
+  expect(screen.getByRole("heading", { name: "Daily Loaf" })).toBeInTheDocument();
 });
 ```
 
-- [ ] **Step 3: Run it to verify it fails, then make it pass**
-  Run: `cd frontend && npm test`. Expected: FAIL. Then replace the Vite demo `App` with a heading saying "Bread Orders" and run `npm test` again (PASS).
+- [ ] **Step 5: Run it to verify it fails, then make it pass**
+  Run: `cd frontend && npm test`. Expected: FAIL.
+  Replace the CLI's demo template in `app.html` with `<h1>Daily Loaf</h1>` and `<router-outlet />`, then run `npm test` again. Expected: PASS.
 
-- [ ] **Step 4: Add `.github/workflows/frontend.yml`**
+- [ ] **Step 6: Add `.github/workflows/frontend.yml`**
   - **Triggers:** pull requests and pushes to `main`, for `frontend/**` and `backend/openapi.json`.
   - **One job, named `frontend`.** Steps:
-    1. `actions/setup-node` with Node 22 and npm cache.
+    1. `actions/setup-node` with `node-version: 26` and npm cache.
     2. `npm ci`.
-    3. `npm run gen:api && git diff --exit-code src/api/schema.d.ts`.
-    4. `npm run lint`, then `npm run format:check`, then `npm run typecheck`, then `npm test`.
+    3. `npm run gen:api && git diff --exit-code src/app/core/api/schema.d.ts`.
+    4. `npm run lint`, then `npm run format:check`, then `npm test`.
     5. `npm audit --audit-level=high --omit=dev`.
-    6. `npm run build`.
+    6. `npm run build`. The build type-checks the templates.
   - Run every step with `working-directory: frontend`.
 
-- [ ] **Step 5: Run every check and verify it passes**
-  Run: `cd frontend && npm run gen:api && npm run lint && npm run typecheck && npm test && npm run build`
-  Expected: all pass.
+- [ ] **Step 7: Run every check and verify it passes**
+  Run: `cd frontend && npm run gen:api && npm run lint && npm test && npm run build`
+  Expected: all pass. `npm start` serves http://localhost:4200.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 8: Commit**
 ```bash
 git add frontend .github/workflows/frontend.yml
-git commit -m "chore(frontend): vite react-ts scaffold, tailwind, shadcn, vitest, msw, CI"
+git commit -m "chore(frontend): angular scaffold with material, eslint, vitest and CI"
 ```
   After merging, add `frontend` to the required checks (GIT-2, Step 2).
 
-### FE-2: Money and date helpers, typed API client and error messages
+### FE-2: Core — runtime config, formatting, error handling and interceptors
+
+**Learn first**
+
+- **Concepts:**
+  - Runtime config loaded before bootstrap; InjectionTokens.
+  - Pure pipes for formatting.
+  - Functional HTTP interceptors; `HttpContext`; testing with `HttpTestingController`.
+- **Why it's built this way:** Cross-cutting concerns (tokens, errors, toasts) live in one place, so pages stay simple.
+- **Read:** [Interceptors](https://angular.dev/guide/http/interceptors) · [Testing HTTP requests](https://angular.dev/guide/http/testing) · [Dependency injection](https://angular.dev/guide/di)
+- **Check yourself** (answer these in your learning note):
+  1. In which order do interceptors run on the request and on the response?
+  2. Why load `config.json` at runtime instead of using environment files?
+- **After the task:** write `docs/learning/FE-2.md`, then ask me for **"walkthrough FE-2"**.
+
 
 **Files:**
 - Create:
-  - `frontend/src/lib/money.ts`
-  - `frontend/src/lib/dates.ts`
-  - `frontend/src/api/client.ts`
-  - `frontend/src/api/errors.ts`
-- Test: `frontend/src/lib/money.test.ts`, `dates.test.ts`, `frontend/src/api/client.test.ts`
+  - `core/config/app-config.ts`
+  - `core/format/{money.ts, dates.ts, eur.pipe.ts, de-date.pipe.ts}`
+  - `core/api/{api-error.ts, error-messages.ts, api-types.ts, interceptors.ts}`
+- Modify: `frontend/src/main.ts`, `app.config.ts`
+- Test: `core/format/money.spec.ts`, `dates.spec.ts`, `core/api/interceptors.spec.ts`
 
 **Interfaces:**
 - Produces:
-  - **`money.ts`:**
-    - `formatEur(cents: number): string`. Same output as the backend, with spaces normalised to `" "`.
-    - `parseEurToCents(input: string): number | null`. It accepts `,` or `.` as the decimal separator, at most 2 decimals, and returns `null` for anything else.
-  - **`dates.ts`:**
-    - `todayBerlin(now?: Date): string` (`YYYY-MM-DD`)
-    - `addDays(iso: string, n: number): string`
-    - `formatDate(iso: string): string` (`dd.MM.yyyy`)
-    - `formatMonth(month: string): string` (`"October 2026"`)
-    - `prevMonth(month: string): string`
-    - `monthOf(iso: string): string`
-  - **`api/errors.ts`:**
-    - `class ApiError extends Error { code: string; field: string | null; status: number; requestId: string | null }`
-    - `messageFor(e: unknown): string`, using the table in Global Constraints; the `INTERNAL_ERROR` message appends the request ID.
-  - **`api/client.ts`:**
-    - `configureApi(opts: { getToken: () => Promise<string | null>; onUnauthorized: () => void }): void`
-    - `api` = `createClient<paths>({ baseUrl })`, plus middleware that adds `Authorization: Bearer` and calls `onUnauthorized` on a 401.
-    - `unwrap<T>(r: { data?: T; error?: unknown; response: Response }): T`, which throws `ApiError` built from the error body and the `X-Request-ID` header.
+  - **`app-config.ts`:**
+    - `interface AppConfig { apiBaseUrl: string; authMode: "cognito" | "dev"; cognitoUserPoolId: string; cognitoClientId: string; demo: boolean }`
+    - `const APP_CONFIG = new InjectionToken<AppConfig>("APP_CONFIG")`
+    - `loadAppConfig(fetchFn = fetch): Promise<AppConfig>` fetches `/config.json` with `cache: "no-store"`.
+    - `main.ts` awaits `loadAppConfig()` and then calls `bootstrapApplication(App, appConfig(config))`. `appConfig` becomes a function of `AppConfig` that returns the `ApplicationConfig`.
+  - **Formatting:**
+    - `money.ts`:
+      - `formatEur(cents: number): string`, the same output as the backend's `format_eur`.
+      - `parseEurToCents(input: string): number | null`. It accepts `,` or `.` as the decimal separator with at most 2 decimals, and returns `null` for anything else.
+    - `dates.ts`:
+      - `todayBerlin(now?: Date): string` (`YYYY-MM-DD`)
+      - `addDays(iso: string, n: number): string`
+      - `formatDate(iso: string): string` (`dd.MM.yyyy`)
+      - `formatMonth(month: string): string` (`"October 2026"`)
+      - `prevMonth(month: string): string`
+      - `monthOf(iso: string): string`
+    - Pipes: `EurPipe` (name `eur`) and `DeDatePipe` (name `deDate`), both standalone and pure.
+  - **`api-types.ts`:** `type Schemas = components["schemas"]` and readable aliases, e.g. `type Customer = Schemas["CustomerOut"]`, `type Order = Schemas["OrderOut"]`.
+  - **`api-error.ts`:** `class ApiError extends Error { code: string; field: string | null; status: number; requestId: string | null }`, plus `toApiError(e: HttpErrorResponse): ApiError`.
+  - **`error-messages.ts`:** `messageFor(e: unknown): string`, using the error-code table in Global Constraints.
+  - **`interceptors.ts`** (all functional `HttpInterceptorFn`s):
+    - `TOKEN_PROVIDER = new InjectionToken<() => Promise<string | null>>("TOKEN_PROVIDER")` and `UNAUTHORIZED_HANDLER = new InjectionToken<() => void>("UNAUTHORIZED_HANDLER")`. FE-3 provides both.
+    - `authTokenInterceptor` adds `Authorization: Bearer <token>`, but only to URLs that start with `apiBaseUrl`. It uses `from(getToken()).pipe(switchMap(...))`.
+    - `apiErrorInterceptor` turns an `HttpErrorResponse` into `ApiError` with `catchError` and calls the unauthorized handler on a 401.
+    - `SKIP_ERROR_TOAST = new HttpContextToken<boolean>(() => false)`.
+    - `errorToastInterceptor`: for non-GET requests, it shows `messageFor(err)` in a `MatSnackBar` unless the request's context has `SKIP_ERROR_TOAST` set. Pages that show the error next to a field set it.
+  - **`app.config.ts`** provides:
+    - `provideHttpClient(withInterceptors([authTokenInterceptor, apiErrorInterceptor, errorToastInterceptor]))`
+    - `provideZonelessChangeDetection()`
+    - `provideRouter(routes, withComponentInputBinding())`
+    - `provideAnimationsAsync()`
+    - `{ provide: APP_CONFIG, useValue: config }`
+    - `{ provide: LOCALE_ID, useValue: "de-DE" }` (register `localeDe`)
 
 - [ ] **Step 1: Write the failing tests**
 ```ts
-test.each([[55, "0,55 €"], [123456, "1.234,56 €"], [-500, "-5,00 €"]])("formatEur(%i)", (c, t) =>
+it.each([[55, "0,55 €"], [123456, "1.234,56 €"], [-500, "-5,00 €"]])("formatEur(%i)", (c, t) =>
   expect(formatEur(c)).toBe(t));
-test.each([["0,55", 55], ["0.55", 55], ["1", 100], ["12,5", 1250], ["abc", null], ["1,234", null], ["", null]])(
+it.each([["0,55", 55], ["0.55", 55], ["1", 100], ["12,5", 1250], ["abc", null], ["1,234", null], ["", null]])(
   "parseEurToCents(%s)", (i, c) => expect(parseEurToCents(i)).toBe(c));
-test("todayBerlin after midnight", () =>
-  expect(todayBerlin(new Date("2026-11-03T23:30:00Z"))).toBe("2026-11-04"));
-test("formatDate", () => expect(formatDate("2026-11-05")).toBe("05.11.2026"));
-test("sends bearer token", async () => { /* MSW handler captures header; expect "Bearer t-1" */ });
-test("409 becomes ApiError", async () => {
-  // MSW returns 409 {"error":{"code":"PERIOD_LOCKED","message":"x","field":"paid_on"}} with X-Request-ID abc
-  // expect ApiError code PERIOD_LOCKED, field paid_on, requestId "abc";
-  // messageFor(e) === "This month is already billed for this customer."
+it("todayBerlin after midnight", () => expect(todayBerlin(new Date("2026-11-03T23:30:00Z"))).toBe("2026-11-04"));
+it("formatDate", () => expect(formatDate("2026-11-05")).toBe("05.11.2026"));
+
+describe("interceptors", () => {
+  // TestBed: provideHttpClient(withInterceptors([...])), provideHttpClientTesting(),
+  // APP_CONFIG {apiBaseUrl: "/api/v1"}, TOKEN_PROVIDER () => Promise.resolve("t-1"), UNAUTHORIZED_HANDLER spy
+  it("adds the bearer token to API calls only", async () => {
+    http.get("/api/v1/me").subscribe(); http.get("/config.json").subscribe();
+    await flushMicrotasks();
+    expect(httpMock.expectOne("/api/v1/me").request.headers.get("Authorization")).toBe("Bearer t-1");
+    expect(httpMock.expectOne("/config.json").request.headers.has("Authorization")).toBe(false);
+  });
+  it("turns a 409 into ApiError", async () => {
+    // flush {"error":{"code":"PERIOD_LOCKED","message":"x","field":"paid_on"}}, status 409, header X-Request-ID abc
+    // expect error instanceof ApiError, code PERIOD_LOCKED, field paid_on, requestId "abc"
+    // and messageFor(error) === "This month is already billed for this customer."
+  });
+  it("calls the unauthorized handler on 401", async () => { /* spy called once */ });
+  it("toasts mutation errors but not GETs or SKIP_ERROR_TOAST", async () => { /* MatSnackBar.open spy */ });
 });
-test("401 calls onUnauthorized", async () => { /* expect spy called once */ });
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -1658,67 +2370,94 @@ test("401 calls onUnauthorized", async () => { /* expect spy called once */ });
 - [ ] **Step 3: Implement the interfaces above**
 
 - [ ] **Step 4: Run the tests to verify they pass**
-  Run: `cd frontend && npm test`
+  Run: `cd frontend && npm test && npm run build`
   Expected: PASS.
 
 - [ ] **Step 5: Commit**
 ```bash
 git add frontend/src
-git commit -m "feat(frontend): euro/date helpers, typed api client, error messages"
+git commit -m "feat(frontend): runtime config, euro/date pipes, api errors and http interceptors"
 ```
 
 ### FE-3: Sign-in (Cognito with MFA, local dev mode)
 
+**Learn first**
+
+- **Concepts:**
+  - Route guards returning a `UrlTree`.
+  - Abstract classes as DI tokens; factory providers.
+  - Signals for UI state; Cognito sign-in steps and TOTP MFA.
+- **Why it's built this way:** Swapping `AuthApi` for a fake makes the login page testable without AWS.
+- **Read:** [Route guards](https://angular.dev/guide/routing/route-guards) · [Signals](https://angular.dev/guide/signals)
+- **Check yourself** (answer these in your learning note):
+  1. Why does the guard return a UrlTree instead of calling `router.navigate`?
+  2. Why is the MFA input `inputmode=numeric` with `autocomplete=one-time-code`?
+- **After the task:** write `docs/learning/FE-3.md`, then ask me for **"walkthrough FE-3"**.
+
+
 **Files:**
-- Create:
-  - `frontend/src/auth/auth.ts`
-  - `frontend/src/auth/AuthProvider.tsx`
-  - `frontend/src/auth/RequireAuth.tsx`
-  - `frontend/src/auth/LoginPage.tsx`
-- Test: `frontend/src/auth/LoginPage.test.tsx`, `RequireAuth.test.tsx`
+- Create: `core/auth/{auth-api.ts, amplify-auth-api.ts, dev-auth-api.ts, auth.service.ts, auth.guard.ts, login.page.ts, login.page.html}`
+- Modify: `app.config.ts`, `app.routes.ts`
+- Test: `core/auth/login.page.spec.ts`, `core/auth/auth.guard.spec.ts`
 
 **Interfaces:**
-- Consumes: `configureApi` (FE-2).
+- Consumes: `APP_CONFIG`, `TOKEN_PROVIDER`, `UNAUTHORIZED_HANDLER` (FE-2).
 - Produces:
-  - **`auth.ts`** (the only file that imports `aws-amplify`; it calls `Amplify.configure` with the user pool ID and client ID):
+  - **`auth-api.ts`:** `abstract class AuthApi`, used as the DI token:
     - `type SignInStep = "DONE" | "MFA_CODE" | "MFA_SETUP" | "NEW_PASSWORD"`
-    - `signInStart(email: string, password: string): Promise<SignInStep>`
-    - `submitMfaCode(code: string): Promise<SignInStep>`
-    - `getTotpSetupUri(): Promise<string>`
-    - `submitNewPassword(pw: string): Promise<SignInStep>`
-    - `getAccessToken(): Promise<string | null>`
-    - `signOutUser(): Promise<void>`
-    - In dev mode, `signInStart` returns `"DONE"` and the token is `"dev-token"`.
-  - **`AuthProvider` / `useAuth()`:** `{ status: "loading" | "signedIn" | "signedOut"; refresh(): Promise<void>; signOut(): Promise<void> }`. It calls `configureApi`, and `onUnauthorized` signs the user out and navigates to `/login`.
-  - **`RequireAuth`** redirects to `/login?next=<path>` when signed out.
-  - **`LoginPage` steps:**
-    1. Email and password.
-    2. New password, if Cognito asks for one.
-    3. MFA setup: show the QR code (`qrcode.react`) plus the secret text, then ask for a code.
-    4. MFA code.
-  - **The MFA code input:** `inputMode="numeric"`, `autoComplete="one-time-code"`, `maxLength={6}`.
-  - **Errors shown:**
-    - Wrong credentials: "Incorrect email or password."
-    - Wrong code: "That code didn't work. Try the newest code."
+    - `signIn(email, password): Promise<SignInStep>`
+    - `confirmMfa(code): Promise<SignInStep>`
+    - `totpSetupUri(): Promise<string>`
+    - `newPassword(pw): Promise<SignInStep>`
+    - `accessToken(): Promise<string | null>`
+    - `signOut(): Promise<void>`
+  - **Implementations:**
+    - `AmplifyAuthApi` is the only file that imports `aws-amplify`. It calls `Amplify.configure` with the pool and client IDs from `APP_CONFIG`.
+    - `DevAuthApi` returns `"DONE"` and the token `"dev-token"`.
+    - Provider: `{ provide: AuthApi, useFactory: () => inject(APP_CONFIG).authMode === "dev" ? new DevAuthApi() : new AmplifyAuthApi(inject(APP_CONFIG)) }`.
+  - **`AuthService`** (`providedIn: "root"`):
+    - `status = signal<"loading" | "signedIn" | "signedOut">("loading")`
+    - `init(): Promise<void>`, run with `provideAppInitializer`
+    - `signOut(): Promise<void>`, which navigates to `/login`
+    - `handleUnauthorized(): void`
+    - `app.config.ts` provides `TOKEN_PROVIDER` as `() => inject(AuthApi).accessToken()` and `UNAUTHORIZED_HANDLER` as `() => inject(AuthService).handleUnauthorized()`. Bind them through `useFactory`.
+  - **`authGuard: CanActivateFn`** returns `true` when signed in, otherwise `router.createUrlTree(["/login"], { queryParams: { next: state.url } })`.
+  - **`LoginPage`:**
+    - A step signal drives the screens: email and password, then a new password, then MFA setup (`<qrcode>` from `angularx-qrcode` plus the secret as text), then the MFA code.
+    - The MFA input has `inputmode="numeric"`, `autocomplete="one-time-code"`, `maxlength="6"` and the label "6-digit code".
+    - Error messages:
+      - wrong credentials: "Incorrect email or password."
+      - wrong code: "That code didn't work. Try the newest code."
+    - On `DONE`, navigate to `next` or `/`.
 
-- [ ] **Step 1: Write the failing tests** (mock `auth.ts` with `vi.mock`)
-```tsx
-test("wrong password shows message", async () => { /* signInStart rejects NotAuthorizedException → text visible */ });
-test("MFA step shows numeric one-time-code input", async () => {
-  // signInStart resolves "MFA_CODE"
+- [ ] **Step 1: Write the failing tests** (provide a fake `AuthApi` with `useValue`, which is Angular DI in place of module mocking)
+```ts
+it("wrong password shows message", async () => {
+  await render(LoginPage, { providers: [{ provide: AuthApi, useValue: fakeAuth({ signIn: reject("NotAuthorizedException") }) }] });
+  await userEvent.type(screen.getByLabelText("Email"), "a@b.de");
+  await userEvent.type(screen.getByLabelText("Password"), "wrong-password");
+  await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  expect(await screen.findByText("Incorrect email or password.")).toBeInTheDocument();
+});
+it("MFA step shows a numeric one-time-code input", async () => {
+  // signIn resolves "MFA_CODE"
   const input = await screen.findByLabelText("6-digit code");
   expect(input).toHaveAttribute("inputmode", "numeric");
   expect(input).toHaveAttribute("autocomplete", "one-time-code");
 });
-test("success navigates to next path", async () => { /* ?next=/orders → lands on /orders */ });
-test("RequireAuth redirects signed-out users", () => { /* /customers → /login?next=%2Fcustomers */ });
+it("success navigates to next", async () => { /* route /login?next=/orders → Router.navigateByUrl("/orders") */ });
+it("guard redirects signed-out users", () => {
+  // TestBed.runInInjectionContext(() => authGuard(route, { url: "/customers" } as RouterStateSnapshot))
+  // → UrlTree "/login?next=%2Fcustomers"
+});
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
-  Run: `cd frontend && npm test -- auth`
+  Run: `cd frontend && npm test`
   Expected: FAIL.
 
 - [ ] **Step 3: Implement the interfaces above**
+  The login form is a typed Reactive Form: `fb.nonNullable.group({ email: ["", [Validators.required, Validators.email]], password: ["", Validators.required] })`.
 
 - [ ] **Step 4: Run the tests to verify they pass**
   Run: `cd frontend && npm test`
@@ -1726,123 +2465,157 @@ test("RequireAuth redirects signed-out users", () => { /* /customers → /login?
 
 - [ ] **Step 5: Commit**
 ```bash
-git add frontend/src/auth
-git commit -m "feat(frontend): cognito sign-in with TOTP MFA and dev mode"
+git add frontend/src
+git commit -m "feat(frontend): cognito sign-in with TOTP MFA, auth guard and dev mode"
 ```
 
-### FE-4: App shell and mobile navigation
+### FE-4: App shell, mobile navigation and shared components
+
+**Learn first**
+
+- **Concepts:**
+  - Layout with CDK `BreakpointObserver`.
+  - Content projection and `ngTemplateOutlet`.
+  - `ControlValueAccessor` and `NG_VALIDATORS` for custom form controls.
+- **Why it's built this way:** Phone-first navigation, and reusable building blocks that every page uses.
+- **Read:** [CDK layout](https://material.angular.dev/cdk/layout/overview) · [ControlValueAccessor](https://angular.dev/api/forms/ControlValueAccessor)
+- **Check yourself** (answer these in your learning note):
+  1. Which four methods does a ControlValueAccessor implement, and when is each called?
+  2. Why decide the layout in CSS for the list, but in code for the navigation?
+- **After the task:** write `docs/learning/FE-4.md`, then ask me for **"walkthrough FE-4"**.
+
 
 **Files:**
 - Create:
-  - `frontend/src/app/router.tsx`
-  - `frontend/src/app/providers.tsx`
-  - `frontend/src/layout/{AppShell.tsx, Sidebar.tsx, BottomNav.tsx, DemoBanner.tsx, navItems.ts}`
-  - `frontend/src/components/{ResponsiveList.tsx, ConfirmDialog.tsx, MoneyInput.tsx}`
-- Test: `frontend/src/layout/AppShell.test.tsx`, `frontend/src/components/ResponsiveList.test.tsx`
+  - `layout/{shell.component.ts, shell.component.html, more-sheet.component.ts, demo-banner.component.ts, nav-items.ts}`
+  - `shared/{responsive-list.component.ts, card-template.directive.ts, money-input.component.ts, confirm.service.ts, confirm-dialog.component.ts, validators.ts}`
+- Modify: `app.routes.ts`
+- Test: `layout/shell.component.spec.ts`, `shared/responsive-list.component.spec.ts`, `shared/money-input.component.spec.ts`
 
 **Interfaces:**
 - Produces:
-  - **Routes**, all inside `RequireAuth` + `AppShell` except `/login`:
-    - `/login`
-    - `/`
-    - `/orders`, `/orders/new`, `/orders/:id`
-    - `/customers`, `/customers/new`, `/customers/:id`
-    - `/rates`
-    - `/payments`
-    - `/bills`
-  - **`navItems`:**
-    - Primary: Dashboard `/`, Orders `/orders`, Customers `/customers`.
-    - More: Rates `/rates`, Payments `/payments`, Bills `/bills`.
-  - **`BottomNav`** (`lg:hidden`, fixed to the bottom, with `pb-[env(safe-area-inset-bottom)]`):
-    - The 3 primary tabs plus a **More** button.
-    - More opens a `Sheet` listing the More items and **Sign out**.
-    - Each tab is at least 44px (`min-h-11 min-w-11`) and has `aria-current="page"` when active.
-  - **`Sidebar`** (`hidden lg:flex`): all items plus Sign out.
-  - **`DemoBanner`:** shown only when `VITE_DEMO === "true"`, with the text "Demo — data resets nightly".
-  - **`ResponsiveList<T>`:** props `{ items: T[]; getKey(t): string | number; columns: { header: string; cell(t): ReactNode }[]; card(t): ReactNode; empty: string }`. It renders a `table` with `hidden md:table` and a card list with `md:hidden`.
-  - **`MoneyInput`:**
-    - A text input with `inputMode="decimal"` that uses `parseEurToCents`.
-    - Its value is in cents (`number | null`).
-    - Shows "Enter an amount like 0,55" when the text is invalid.
-  - **`ConfirmDialog`:** props `{ title, description, confirmLabel, onConfirm }`.
-  - **TanStack Query:** `QueryClient` with `retry: 1`. A global `onError` calls `toast.error(messageFor(e))`, but only for mutations.
+  - **Routes:**
+    - `/login` sits outside the shell.
+    - Every other route sits inside `ShellComponent`, with `canActivate: [authGuard]`, and is lazy-loaded: `/`, `/orders`, `/orders/new`, `/orders/:id`, `/customers`, `/customers/new`, `/customers/:id`, `/rates`, `/payments`, `/bills`, `/search`.
+  - **`nav-items.ts`:**
+    - `PRIMARY`: Dashboard `/`, Orders `/orders`, Customers `/customers`.
+    - `MORE`: Search `/search`, Rates `/rates`, Payments `/payments`, Bills `/bills`.
+  - **`ShellComponent`:**
+    - `isDesktop = toSignal(inject(BreakpointObserver).observe("(min-width: 1024px)").pipe(map(r => r.matches)))`.
+    - **Desktop:** a `mat-sidenav-container` with `mode="side"` that lists all items and Sign out.
+    - **Phone:** a fixed bottom `<nav aria-label="Main (mobile)">` with the 3 primary links plus a **More** button.
+      - It uses `padding-bottom: env(safe-area-inset-bottom)`.
+      - Links use `routerLinkActive` with `ariaCurrentWhenActive="page"`, and every target has the `touch` class.
+    - **More** opens `MatBottomSheet` with `MoreSheetComponent`, which lists the `MORE` items and **Sign out**.
+  - **`DemoBannerComponent`:** shown only when `APP_CONFIG.demo`, with the text "Demo — data resets nightly".
+  - **`ResponsiveListComponent<T>`:**
+    - Inputs: `items: input.required<T[]>()`, `columns: input.required<{ header: string; cell: (t: T) => string }[]>()`, `empty: input.required<string>()`.
+    - The card template comes from `@ContentChild(CardTemplateDirective)`, used as `<ng-template appCard let-item>`.
+    - It renders a `<table>` (shown from 768px) and a `role="list"` card list (shown below 768px) through CSS media queries, using `ngTemplateOutlet`.
+  - **`MoneyInputComponent`:**
+    - Implements `ControlValueAccessor` and `Validator` (`NG_VALUE_ACCESSOR` and `NG_VALIDATORS` with `multi: true`).
+    - Its value is cents (`number | null`), and the text input has `inputmode="decimal"`.
+    - Invalid text gives the error `{ money: true }`, displayed as "Enter an amount like 0,55".
+  - **`validators.ts`:** `notBlank: ValidatorFn` (returns `{ required: true }` for whitespace) and `positiveCents: ValidatorFn`.
+  - **`ConfirmService.confirm(opts: { title: string; description: string; confirmLabel: string }): Observable<boolean>`**, which opens `ConfirmDialogComponent` through `MatDialog`.
 
 - [ ] **Step 1: Write the failing tests**
-```tsx
-test("bottom nav has primary tabs and More", async () => {
-  renderWithRouter("/orders");
+```ts
+it("phone nav has primary tabs and More", async () => {
+  // render ShellComponent with BreakpointObserver stubbed to matches:false, at route /orders
   const nav = screen.getByRole("navigation", { name: "Main (mobile)" });
-  expect(within(nav).getAllByRole("link").map(l => l.textContent)).toEqual(["Dashboard", "Orders", "Customers"]);
+  expect(within(nav).getAllByRole("link").map(l => l.textContent?.trim())).toEqual(["Dashboard", "Orders", "Customers"]);
   expect(within(nav).getByRole("link", { name: "Orders" })).toHaveAttribute("aria-current", "page");
   await userEvent.click(within(nav).getByRole("button", { name: "More" }));
-  for (const n of ["Rates", "Payments", "Bills", "Sign out"]) expect(screen.getByText(n)).toBeVisible();
+  for (const n of ["Search", "Rates", "Payments", "Bills", "Sign out"]) expect(await screen.findByText(n)).toBeVisible();
 });
-test("demo banner only in demo", () => { /* stub VITE_DEMO true/false */ });
-test("ResponsiveList renders table and cards", () => {
-  // two items → table has 2 body rows; card list has 2 listitems; empty items → empty text
+it("desktop shows sidenav instead", async () => { /* matches:true → no "Main (mobile)" nav; sidenav has all items */ });
+it("demo banner only in demo", async () => { /* APP_CONFIG demo true/false */ });
+it("ResponsiveList renders table rows and cards", async () => {
+  // host component with 2 items → 2 table body rows and 2 listitems; [] → empty text
+});
+it("MoneyInput writes cents to the form control", async () => {
+  // host with FormControl<number|null>; type "8,50" → control.value === 850; type "abc" → control.errors {money:true}
 });
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
-  Run: `cd frontend && npm test -- layout ResponsiveList`
+  Run: `cd frontend && npm test`
   Expected: FAIL.
 
 - [ ] **Step 3: Implement the interfaces above**
-  Each page is a placeholder component with an `h1` until its feature task.
+  Each page is a placeholder component with an `<h1>` until its feature task.
 
 - [ ] **Step 4: Run the tests to verify they pass, and check by hand**
   Run: `cd frontend && npm test`. Expected: PASS.
-  Then run `npm run dev` and open Chrome DevTools device mode at 360×740:
+  Then run `npm start` and open Chrome DevTools device mode at 360×740:
   - the bottom bar is visible and nothing scrolls horizontally;
-  - at 1280px the sidebar is shown instead.
+  - at 1280px the sidenav is shown instead.
 
 - [ ] **Step 5: Commit**
 ```bash
 git add frontend/src
-git commit -m "feat(frontend): app shell with bottom tabs on phones and sidebar on desktop"
+git commit -m "feat(frontend): shell with bottom tabs and sidenav, responsive list, money input CVA"
 ```
 
 ### FE-5: Customers screens
 
+**Learn first**
+
+- **Concepts:**
+  - RxJS: `debounceTime`, `distinctUntilChanged`, `switchMap`.
+  - Typed Reactive Forms and custom validators.
+  - Route input binding (`withComponentInputBinding`).
+- **Why it's built this way:** Search sends one request per pause and cancels outdated ones; forms are typed end to end.
+- **Read:** [RxJS operators](https://rxjs.dev/guide/operators) · [Reactive forms](https://angular.dev/guide/forms/reactive-forms)
+- **Check yourself** (answer these in your learning note):
+  1. What would `mergeMap` do differently in the search box?
+  2. Why `nonNullable` form groups?
+- **After the task:** write `docs/learning/FE-5.md`, then ask me for **"walkthrough FE-5"**.
+
+
 **Files:**
-- Create:
-  - `frontend/src/features/customers/{api.ts, schema.ts, CustomersPage.tsx, CustomerForm.tsx, CustomerDetailPage.tsx}`
-  - `frontend/src/features/customers/customers.test.tsx`
-- Modify:
-  - `frontend/src/app/router.tsx`
-  - `frontend/src/test/handlers.ts`
+- Create: `features/customers/{customers.service.ts, customers.page.ts, customer-form.page.ts, customer-detail.page.ts}` (each page with its `.html`)
+- Test: `features/customers/customers.page.spec.ts`, `customer-form.page.spec.ts`, `customer-detail.page.spec.ts`, `customers.service.spec.ts`
 
 **Interfaces:**
-- Consumes: `api`, `unwrap` (FE-2), `ResponsiveList`, `ConfirmDialog` (FE-4), `formatEur`.
+- Consumes: `ResponsiveListComponent`, `ConfirmService`, `notBlank` (FE-4); `EurPipe`, `api-types` (FE-2).
 - Produces:
-  - **Hooks:**
-    - `useCustomers({ q, includeInactive })`
-    - `useCustomer(id)` (returns `CustomerDetail` with `balance_cents`)
-    - `useCreateCustomer()`
-    - `useUpdateCustomer(id)`
-    - `useCustomerAction(id, "deactivate" | "activate" | "anonymise")`
-  - **Query keys:** `["customers", params]` and `["customer", id]`. Mutations invalidate both.
-  - **Zod schema:**
-    - `name`: trimmed, 1–200 characters, message "Name is required".
-    - `phone`: ≤ 50, optional, `type="tel"`.
-    - `address` and `notes`: optional.
-  - **List:** a search box with a 300 ms debounce and an "Show inactive" toggle. Cards show the name, phone (as a `tel:` link) and an inactive badge.
-  - **Detail page:**
-    - Contact info and balance: "Owes 8,50 €", or "Credit 2,00 €" when the balance is negative.
-    - The last 20 orders, from `GET /orders?customer_id=`.
-    - Buttons: Edit, New order (`/orders/new?customer=<id>`), Deactivate/Activate, Anonymise.
-    - Anonymise asks for confirmation: "This permanently removes name, phone, address and notes. Bills are kept."
+  - **`CustomersService`:**
+    - `list(p: { q?: string; includeInactive?: boolean }): Observable<Page<Customer>>`
+    - `get(id: number): Observable<CustomerDetail>`
+    - `create(body: CustomerIn): Observable<Customer>`
+    - `update(id: number, body: CustomerPatch): Observable<Customer>`
+    - `action(id: number, a: "deactivate" | "activate" | "anonymise"): Observable<Customer>`
+    - Query parameters are built with `HttpParams`; empty values are left out.
+  - **`CustomersPage`:**
+    - `search = new FormControl("", { nonNullable: true })`.
+    - Results: `toSignal(combineLatest([search.valueChanges.pipe(startWith(""), debounceTime(300), distinctUntilChanged()), showInactive$]).pipe(switchMap(([q, inc]) => service.list({ q, includeInactive: inc }))))`. `switchMap` cancels an older request when a newer one starts.
+    - Cards show the name, the phone as a `tel:` link, and an "Inactive" chip.
+  - **`CustomerFormPage`** (create, and edit when the route has `:id`):
+    - `fb.nonNullable.group({ name: ["", [notBlank, Validators.maxLength(200)]], phone: ["", Validators.maxLength(50)], address: [""], notes: [""] })`.
+    - The `name` error text is "Name is required".
+    - The phone field is `type="tel"`.
+  - **`CustomerDetailPage`:**
+    - `id = input.required<number>({ transform: numberAttribute })`, which uses route input binding.
+    - Shows the balance as "Owes 8,50 €", or "Credit 2,00 €" when it is negative.
+    - Shows the last 20 orders (`GET /orders?customer_id=&limit=20`).
+    - Buttons: Edit, New order (`/orders/new?customer=<id>`), Deactivate/Activate and Anonymise.
+    - Anonymise asks for confirmation first: "This permanently removes name, phone, address and notes. Bills are kept."
 
-- [ ] **Step 1: Write the failing tests** (with MSW)
-```tsx
-test("search queries the API", async () => { /* type "ash" → request has ?q=ash after debounce; Asha shown */ });
-test("empty name blocked", async () => { /* submit → "Name is required", no POST sent */ });
-test("detail shows balance and orders", async () => { /* balance_cents 850 → "Owes 8,50 €"; order rows listed */ });
-test("anonymise needs confirmation", async () => { /* click → dialog; confirm → POST /anonymise */ });
+- [ ] **Step 1: Write the failing tests**
+```ts
+it("search waits 300 ms and cancels older requests", async () => {
+  // fake timers; type "as" then "ash" within 300 ms → only one request ?q=ash; respond → "Asha Patil" shown
+});
+it("blank name is blocked", async () => { /* type "  " → submit → "Name is required"; httpMock.expectNone POST */ });
+it("detail shows balance and orders", async () => { /* balance_cents 850 → "Owes 8,50 €" */ });
+it("anonymise needs confirmation", async () => { /* confirm false → no POST; true → POST /customers/1/anonymise */ });
+it("service drops empty params", () => { /* list({q:""}) → URL "/api/v1/customers" with no q */ });
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
-  Run: `cd frontend && npm test -- customers`
+  Run: `cd frontend && npm test`
   Expected: FAIL.
 
 - [ ] **Step 3: Implement the interfaces above**
@@ -1854,33 +2627,50 @@ test("anonymise needs confirmation", async () => { /* click → dialog; confirm 
 - [ ] **Step 5: Commit**
 ```bash
 git add frontend/src
-git commit -m "feat(frontend): customers list, form and detail"
+git commit -m "feat(frontend): customers list with rxjs search, typed form and detail"
 ```
 
 ### FE-6: Rates screen
 
+**Learn first**
+
+- **Concepts:**
+  - Material dialogs returning results.
+  - Showing a server error under a specific field.
+- **Why it's built this way:** The user sees exactly which field to fix, not a generic toast.
+- **Read:** [Material dialog](https://material.angular.dev/components/dialog/overview)
+- **Check yourself** (answer these in your learning note):
+  1. How does `SKIP_ERROR_TOAST` change what the user sees?
+- **After the task:** write `docs/learning/FE-6.md`, then ask me for **"walkthrough FE-6"**.
+
+
 **Files:**
-- Create: `frontend/src/features/rates/{api.ts, RatesPage.tsx, NewRateDialog.tsx, rates.test.tsx}`
+- Create: `features/rates/{products.service.ts, rates.page.ts, new-rate.dialog.ts}`
+- Test: `features/rates/rates.page.spec.ts`
 
 **Interfaces:**
-- Consumes: `MoneyInput`, `ResponsiveList` (FE-4), `todayBerlin`, `addDays`, `formatDate` (FE-2).
+- Consumes: `MoneyInputComponent`, `positiveCents` (FE-4); `todayBerlin`, `addDays` (FE-2); `SKIP_ERROR_TOAST`.
 - Produces:
-  - **Hooks:** `useProducts(on?: string)`, `useRates(productId)`, `useCreateRate()`. `useCreateRate` invalidates `["products"]` and `["rates", productId]`.
-  - **Page:** one card per product, showing the name, current price and a "Price history" disclosure.
-  - **"Set new price" dialog:**
-    - `MoneyInput`, required and greater than 0.
+  - **`ProductsService`:**
+    - `list(on?: string): Observable<Product[]>`
+    - `rates(productId: number): Observable<Rate[]>`
+    - `createRate(body: RateIn): Observable<Rate>`
+  - **`RatesPage`:** one `mat-card` per product with its name and current price, plus a "Price history" `mat-expansion-panel`.
+  - **`NewRateDialog`:**
+    - `MoneyInput`, required, with `positiveCents`.
     - `effective_from`, defaulting to `addDays(todayBerlin(), 1)`.
-    - A `RATE_EXISTS` error is shown under the date field.
+    - It sends the request with `SKIP_ERROR_TOAST` and shows `RATE_EXISTS` under the date field.
+    - When it closes with a result, the page reloads.
 
 - [ ] **Step 1: Write the failing tests**
-```tsx
-test("shows current prices", async () => { /* "Medium pav" … "0,55 €" */ });
-test("new price posts cents and date", async () => { /* type "0,58", date 2026-11-10 → body {price_cents:58,...} */ });
-test("duplicate date shows field error", async () => { /* 409 RATE_EXISTS → "A price already starts on this date." */ });
+```ts
+it("shows current prices", async () => { /* "Medium pav" … "0,55 €" */ });
+it("new price posts cents and date", async () => { /* "0,58", 2026-11-10 → body {product_id, price_cents: 58, effective_from: "2026-11-10"} */ });
+it("duplicate date shows field error", async () => { /* 409 RATE_EXISTS → "A price already starts on this date." under date */ });
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
-  Run: `cd frontend && npm test -- rates`
+  Run: `cd frontend && npm test`
   Expected: FAIL.
 
 - [ ] **Step 3: Implement the interfaces above**
@@ -1891,69 +2681,93 @@ test("duplicate date shows field error", async () => { /* 409 RATE_EXISTS → "A
 
 - [ ] **Step 5: Commit**
 ```bash
-git add frontend/src/features/rates
+git add frontend/src/app/features/rates
 git commit -m "feat(frontend): rates page with price history"
 ```
 
 ### FE-7: Orders screens (phone-first order entry)
 
+**Learn first**
+
+- **Concepts:**
+  - Combining signals and Observables (`toSignal`, `computed`).
+  - Dynamic form groups per product.
+  - Mapping server field paths back to form controls.
+  - Sticky footers and touch targets on phones.
+- **Why it's built this way:** The most-used screen: fast with one thumb, and impossible to submit with a wrong total.
+- **Read:** [Signals: computed](https://angular.dev/guide/signals#computed-signals) · [RxJS interop](https://angular.dev/guide/signals/rxjs-interop)
+- **Check yourself** (answer these in your learning note):
+  1. When the delivery date changes, what happens step by step?
+  2. Why does the total use `computed()` instead of a method called in the template?
+- **After the task:** write `docs/learning/FE-7.md`, then ask me for **"walkthrough FE-7"**.
+
+
 **Files:**
 - Create:
-  - `frontend/src/features/orders/{api.ts, OrdersPage.tsx, NewOrderPage.tsx, OrderDetailPage.tsx, OrderForm.tsx, statusActions.ts, orders.test.tsx}`
-  - `frontend/src/components/QuantityStepper.tsx`
+  - `features/orders/{orders.service.ts, status-actions.ts, orders.page.ts, order-form.component.ts, new-order.page.ts, order-detail.page.ts}`
+  - `shared/quantity-stepper.component.ts`
+- Test: `features/orders/order-form.component.spec.ts`, `orders.page.spec.ts`, `shared/quantity-stepper.component.spec.ts`
 
 **Interfaces:**
-- Consumes: `useProducts(on)` (FE-6), `useCustomers` (FE-5), `ApiError`, `messageFor` (FE-2).
+- Consumes: `ProductsService.list(on)` (FE-6), `CustomersService.list` (FE-5), `ApiError`, `messageFor`, `SKIP_ERROR_TOAST` (FE-2), `ConfirmService` (FE-4).
 - Produces:
-  - **Hooks:** `useOrders(filters)`, `useOrder(id)`, `useCreateOrder()`, `useUpdateOrder(id)`, `useChangeStatus(id)`.
-  - **`statusActions.ts`:**
+  - **`OrdersService`:**
+    - `list(f: { dateFrom?: string; dateTo?: string; status?: OrderStatus[]; customerId?: number }): Observable<Page<Order>>`
+    - `get(id: number): Observable<Order>`
+    - `create(body: OrderIn): Observable<Order>`
+    - `update(id: number, body: OrderIn): Observable<Order>`
+    - `changeStatus(id: number, status: OrderStatus): Observable<Order>`
+  - **`status-actions.ts`:**
     - `NEXT_ACTION: Partial<Record<OrderStatus, { label: string; target: OrderStatus }>>`:
       - `pending` → "Confirm" (`confirmed`)
       - `confirmed` → "Start prep" (`in_prep`)
       - `in_prep` → "Mark delivered" (`delivered`)
     - `STATUS_LABEL`: Pending, Confirmed, In prep, Delivered, Cancelled.
-  - **`QuantityStepper`:** props `{ label, value, onChange }`. A − button, a number input (`inputMode="numeric"`, min 0) and a + button; each button is at least 44px.
-  - **`OrderForm`** (shared by new and edit):
-    - Customer search combobox (active customers only), prefilled from `?customer=`.
-    - Delivery date, defaulting to `addDays(todayBerlin(), 1)`.
-    - Source as a segmented control (WhatsApp / Phone / Other, default WhatsApp).
-    - One `QuantityStepper` per product, using prices from `useProducts(deliveryDate)`.
-    - Notes.
-    - A sticky footer (`sticky bottom-0`) with the live total (`formatEur`) and a Save button.
-    - It sends only items with a quantity above 0.
-    - With no items above 0 it shows "Add at least one item" and sends nothing.
-    - If a product's price is `null` for the date, it shows "No price for this date" and disables Save.
-    - API 422 errors with `field` `items.N.quantity` are shown under that product's stepper.
+  - **`QuantityStepperComponent`:** a `ControlValueAccessor` (value `number`, minimum 0). It has a − button, a number input (`inputmode="numeric"`) and a + button, each with the `touch` class, plus an `aria-label` from the `label` input.
+  - **`OrderFormComponent`** (shared by new and edit):
+    - Inputs: `initial = input<Order | null>(null)` and `customerId = input<number | null>(null)`. Output: `saved = output<Order>()`.
+    - **Form:**
+      - `customerId` uses a `mat-autocomplete` over active customers.
+      - `deliveryDate` defaults to `addDays(todayBerlin(), 1)`.
+      - `source` is a `mat-button-toggle-group` (WhatsApp / Phone / Other, default WhatsApp).
+      - `items` is a `FormGroup<Record<productCode, FormControl<number>>>`, with one stepper per product.
+      - `notes`.
+    - **Prices:**
+      - `products = toSignal(deliveryDate.valueChanges.pipe(startWith(initial), switchMap(d => productsService.list(d))))`.
+      - `total = computed(() => sum of quantity × price_cents)`, where the quantities come from a `toSignal` of the items' `valueChanges`.
+    - **Sticky footer** (`position: sticky; bottom: 0`): the total formatted with `eur`, and a Save button.
+    - **Sending:** only items with a quantity above 0 are sent.
+      - With none, it shows "Add at least one item" and sends nothing.
+      - If a product's price is `null` for the date, it shows "No price for this date" and disables Save.
+    - **Server errors:** requests use `SKIP_ERROR_TOAST`. A 422 with field `items.N.quantity` sets `{ server: message }` on that product's control, using the N-th item that was sent.
   - **`OrdersPage`:**
-    - Date filter (default today), with Today / Tomorrow shortcuts, and status filter chips.
-    - Order cards show the customer, an item summary ("20× Mini pav, 10× Medium pav"), the total, a status badge, the next-action button and an overflow menu (Edit when editable, Cancel with confirmation).
-  - **`OrderDetailPage`:** read-only view with the actions, and an Edit form when the order is editable.
+    - Filters: date (default today, with Today and Tomorrow chips) and status chips, synced to query parameters.
+    - Each card shows the customer, the item summary ("20× Mini pav, 10× Medium pav"), the total, a status chip, the next-action button and a `mat-menu` (Edit when editable, Cancel with confirmation).
+  - **`OrderDetailPage`:** a read-only view with the same actions, and `OrderFormComponent` when the order is editable.
 
 - [ ] **Step 1: Write the failing tests**
-```tsx
-test("live total from steppers", async () => {
-  // products 40/55 → set Mini 20, Medium 10 → footer shows "13,50 €"
+```ts
+it("live total from steppers", async () => { /* prices 40/55; Mini + ×20, Medium ×10 → footer "13,50 €" */ });
+it("no items blocks submit", async () => { /* Save → "Add at least one item"; httpMock.expectNone */ });   // Review Focus 5
+it("server field error shown under the right stepper", async () => {
+  // Mini 3, Medium 5, Roti 0 → items sent [Mini, Medium] in product order;
+  // 422 field "items.1.quantity" → message inside the Medium pav stepper group
 });
-test("no items blocks submit", async () => { /* Save → "Add at least one item"; no POST */ });   // Review Focus 5
-test("server field error shown under stepper", async () => {
-  // POST returns 422 field "items.0.quantity" → message rendered inside the Mini pav stepper group
-});
-test("missing price disables save", async () => { /* products?on=… price null → "No price for this date" */ });
-test("next action advances status", async () => { /* pending card → "Confirm" → POST status {status:"confirmed"} */ });
-test("period locked shown as toast", async () => {
-  // 409 PERIOD_LOCKED → "This month is already billed for this customer."
-});
+it("missing price disables save", async () => { /* products?on=… price null → "No price for this date"; Save disabled */ });
+it("changing date reloads prices and cancels the old request", async () => { /* two dates quickly → first request cancelled */ });
+it("next action advances status", async () => { /* pending card → "Confirm" → POST /orders/1/status {status:"confirmed"} */ });
+it("stepper never goes below 0", async () => { /* value 0, click − → stays 0 */ });
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
-  Run: `cd frontend && npm test -- orders`
+  Run: `cd frontend && npm test`
   Expected: FAIL.
 
 - [ ] **Step 3: Implement the interfaces above**
 
 - [ ] **Step 4: Run the tests to verify they pass, and check on a phone screen**
   Run: `cd frontend && npm test`. Expected: PASS.
-  Then in DevTools at 360×740, check that the whole new-order form plus its footer is usable with one thumb and that the numeric keypad appears for quantity inputs (use an iOS or Android emulator if you have one).
+  Then in DevTools at 360×740, check that the whole new-order form plus its footer works with one thumb.
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -1963,29 +2777,50 @@ git commit -m "feat(frontend): orders list, status actions and phone-first order
 
 ### FE-8: Payments screen
 
+**Learn first**
+
+- **Concepts:**
+  - Shared services between features.
+  - Refreshing data after a change with a `Subject`.
+- **Why it's built this way:** Balances on screen always match what was just recorded.
+- **Read:** [RxJS Subject](https://rxjs.dev/guide/subject)
+- **Check yourself** (answer these in your learning note):
+  1. What's the difference between a Subject and a BehaviorSubject?
+- **After the task:** write `docs/learning/FE-8.md`, then ask me for **"walkthrough FE-8"**.
+
+
 **Files:**
-- Create: `frontend/src/features/payments/{api.ts, PaymentsPage.tsx, PaymentForm.tsx, payments.test.tsx}`
+- Create: `features/payments/{payments.service.ts, statements.service.ts, payments.page.ts, payment-form.component.ts}`
+- Test: `features/payments/payments.page.spec.ts`
 
 **Interfaces:**
-- Consumes: `MoneyInput`, `ResponsiveList`, `ConfirmDialog`, `useCustomers`, and `useStatements(month)` (defined here, reused in FE-9).
+- Consumes: `MoneyInputComponent`, `ResponsiveListComponent`, `ConfirmService`, `CustomersService`.
 - Produces:
-  - **Hooks:** `usePayments({ customerId, month })`, `useCreatePayment()`, `useDeletePayment()`, `useStatements({ month, customerId? })`.
-  - **Page:**
+  - **`PaymentsService`:**
+    - `list(p: { customerId?: number; month?: string }): Observable<Payment[]>`
+    - `create(body: PaymentIn): Observable<Payment>`
+    - `delete(id: number): Observable<void>`
+  - **`StatementsService`** (reused in FE-9):
+    - `list(p: { month: string; customerId?: number }): Observable<Statement[]>`
+    - `generate(month: string): Observable<Statement[]>`
+    - `issue(id: number): Observable<Statement>`
+    - `pdfUrl(id: number): Observable<string>`
+  - **`PaymentsPage`:**
     - A month selector (default: current month) and a customer filter.
-    - A "Record payment" form: customer, amount (`MoneyInput`), date (default today), method (Cash / Bank transfer / Other), note.
+    - The `PaymentFormComponent`: customer, amount, date (default today), method (Cash / Bank transfer / Other) and note. It uses `SKIP_ERROR_TOAST`, so field errors appear under their fields.
     - The payments list, with delete and confirmation.
-    - A "Monthly balances" section: statements for the month (opening, orders, payments, closing per customer), or "No bills generated for this month yet."
-  - Mutations invalidate `["payments"]`, `["statements"]`, `["customer"]` and `["dashboard"]`.
+    - A "Monthly balances" section: the statements for the month (opening, orders, payments and closing per customer), or "No bills generated for this month yet."
+    - After any change, the page re-fetches through a `refresh$` subject.
 
 - [ ] **Step 1: Write the failing tests**
-```tsx
-test("records payment in cents", async () => { /* "8,50" → POST amount_cents 850, method "bank_transfer" */ });
-test("future date error under field", async () => { /* 422 field paid_on → message under date input */ });
-test("monthly balances listed", async () => { /* statement closing 600 → "6,00 €" for customer A */ });
+```ts
+it("records payment in cents", async () => { /* "8,50", Bank transfer → POST {amount_cents: 850, method: "bank_transfer"} */ });
+it("future date error under field", async () => { /* 422 field paid_on → message under date input */ });
+it("monthly balances listed", async () => { /* closing_cents 600 → "6,00 €" for customer A */ });
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
-  Run: `cd frontend && npm test -- payments`
+  Run: `cd frontend && npm test`
   Expected: FAIL.
 
 - [ ] **Step 3: Implement the interfaces above**
@@ -1996,38 +2831,53 @@ test("monthly balances listed", async () => { /* statement closing 600 → "6,00
 
 - [ ] **Step 5: Commit**
 ```bash
-git add frontend/src/features/payments
+git add frontend/src/app/features/payments
 git commit -m "feat(frontend): payments and monthly balances"
 ```
 
 ### FE-9: Bills screen
 
+**Learn first**
+
+- **Concepts:**
+  - Sequential async work with `concatMap`.
+  - Confirming irreversible actions.
+  - Opening downloads safely with `noopener`.
+- **Why it's built this way:** Issuing locks a month for good, so the UI makes that explicit and stops at the first problem.
+- **Read:** [concatMap](https://rxjs.dev/api/operators/concatMap)
+- **Check yourself** (answer these in your learning note):
+  1. Why `concatMap` and not `forkJoin` for 'Issue all'?
+  2. What does `noopener` protect against?
+- **After the task:** write `docs/learning/FE-9.md`, then ask me for **"walkthrough FE-9"**.
+
+
 **Files:**
-- Create: `frontend/src/features/bills/{api.ts, BillsPage.tsx, bills.test.tsx}`
+- Create: `features/bills/bills.page.ts`
+- Test: `features/bills/bills.page.spec.ts`
 
 **Interfaces:**
-- Consumes: `useStatements` (FE-8), `ConfirmDialog`, `prevMonth`, `formatMonth`.
+- Consumes: `StatementsService` (FE-8), `ConfirmService`, `prevMonth`, `formatMonth`.
 - Produces:
-  - **Hooks:** `useGenerateMonth()`, `useIssueStatement()`, `usePdfUrl()`. `usePdfUrl` is a mutation that returns the URL.
-  - **Page:**
+  - **`BillsPage`:**
     - A month picker (default `prevMonth` of the current month).
     - A **Generate drafts** button.
-    - The statement list: customer, invoice number, closing amount, Draft/Issued badge.
-    - For a draft: **Issue**, with confirmation "Issuing locks <Month> for <customer>. Corrections then go into the next month as adjustments."
-    - For an issued statement: **Download PDF**. It requests the URL, then `window.open(url, "_blank", "noopener")`, so on phones the PDF opens in the built-in viewer.
-    - **Issue all drafts** issues sequentially and stops at the first error.
-  - `MONTH_NOT_ENDED`, `PREVIOUS_MONTH_NOT_ISSUED` and `LATER_MONTH_GENERATED` messages appear in an alert above the list.
+    - The statement list: customer, invoice number, closing amount, and a Draft/Issued chip.
+  - **Draft actions:** **Issue**, after the confirmation "Issuing locks <Month> for <customer>. Corrections then go into the next month as adjustments."
+  - **Issued actions:** **Download PDF**. It calls `pdfUrl(id)`, then `window.open(url, "_blank", "noopener")`, so on phones the PDF opens in the built-in viewer.
+  - **Issue all drafts** runs `from(drafts).pipe(concatMap(d => issue(d.id)))`, which issues one at a time and stops at the first error.
+  - The `MONTH_NOT_ENDED`, `PREVIOUS_MONTH_NOT_ISSUED` and `LATER_MONTH_GENERATED` messages appear in an alert above the list (`SKIP_ERROR_TOAST`).
 
 - [ ] **Step 1: Write the failing tests**
-```tsx
-test("generate creates drafts for month", async () => { /* POST {month:"2026-10"}; 1 draft row shown */ });
-test("issue asks for confirmation then posts", async () => { /* dialog text contains "October 2026" */ });
-test("download opens presigned url", async () => { /* window.open spied with returned url */ });
-test("month not ended shows alert", async () => { /* 409 MONTH_NOT_ENDED → "Bills can be issued after the month ends." */ });
+```ts
+it("generate creates drafts for month", async () => { /* POST /statements/generate {month:"2026-10"} → 1 draft row */ });
+it("issue asks for confirmation then posts", async () => { /* dialog text contains "October 2026" */ });
+it("issue all stops at first error", async () => { /* 2 drafts, first 409 → second never requested */ });
+it("download opens presigned url", async () => { /* vi.spyOn(window, "open") called with returned url */ });
+it("month not ended shows alert", async () => { /* 409 MONTH_NOT_ENDED → "Bills can be issued after the month ends." */ });
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
-  Run: `cd frontend && npm test -- bills`
+  Run: `cd frontend && npm test`
   Expected: FAIL.
 
 - [ ] **Step 3: Implement the interfaces above**
@@ -2038,36 +2888,49 @@ test("month not ended shows alert", async () => { /* 409 MONTH_NOT_ENDED → "Bi
 
 - [ ] **Step 5: Commit**
 ```bash
-git add frontend/src/features/bills
+git add frontend/src/app/features/bills
 git commit -m "feat(frontend): bills generate, issue and download"
 ```
 
 ### FE-10: Dashboard screen
 
+**Learn first**
+
+- **Concepts:**
+  - Polling with `timer` and refreshing on `visibilitychange`.
+  - Turning streams into signals.
+- **Why it's built this way:** The dashboard stays current on a kitchen phone without a manual refresh.
+- **Read:** [RxJS timer](https://rxjs.dev/api/index/function/timer)
+- **Check yourself** (answer these in your learning note):
+  1. Why also refresh when the tab becomes visible?
+- **After the task:** write `docs/learning/FE-10.md`, then ask me for **"walkthrough FE-10"**.
+
+
 **Files:**
-- Create: `frontend/src/features/dashboard/{api.ts, DashboardPage.tsx, dashboard.test.tsx}`
+- Create: `features/dashboard/{dashboard.service.ts, dashboard.page.ts}`
+- Test: `features/dashboard/dashboard.page.spec.ts`
 
 **Interfaces:**
-- Consumes: `GET /dashboard` (BE-11), `formatDate`, `formatEur`, `STATUS_LABEL` (FE-7).
+- Consumes: `GET /dashboard` (BE-11), the `deDate` and `eur` pipes, `STATUS_LABEL` (FE-7).
 - Produces:
-  - **`useDashboard()`**, refetching every 60 seconds and when the window regains focus.
-  - **Page:**
-    - Heading "Today · 05.11.2026".
+  - **`DashboardService.get(): Observable<Dashboard>`.**
+  - **`DashboardPage`:**
+    - Data: `toSignal(merge(timer(0, 60_000), fromEvent(document, "visibilitychange").pipe(filter(() => !document.hidden))).pipe(switchMap(() => service.get())))`.
+    - Heading: "Today · 05.11.2026".
     - A **To bake** card listing product and quantity, or "Nothing to bake today".
     - Status count chips that link to `/orders?status=<s>&date=<today>`.
     - An **Outstanding** card with the total.
-    - A **New order** primary button.
+    - A **New order** button.
 
 - [ ] **Step 1: Write the failing tests**
-```tsx
-test("shows bake list and outstanding", async () => {
-  // baking_totals Mini 30, Roti 5; outstanding 600 → "30", "Mini pav", "6,00 €"
-});
-test("status chip links to filtered orders", async () => { /* Pending 1 → href contains status=pending */ });
+```ts
+it("shows bake list and outstanding", async () => { /* Mini 30, Roti 5, outstanding 600 → "30", "Mini pav", "6,00 €" */ });
+it("status chip links to filtered orders", async () => { /* Pending 1 → href contains status=pending */ });
+it("refreshes every minute", async () => { /* fake timers: advance 60 s → second GET /dashboard */ });
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
-  Run: `cd frontend && npm test -- dashboard`
+  Run: `cd frontend && npm test`
   Expected: FAIL.
 
 - [ ] **Step 3: Implement the interfaces above**
@@ -2078,11 +2941,88 @@ test("status chip links to filtered orders", async () => { /* Pending 1 → href
 
 - [ ] **Step 5: Commit**
 ```bash
-git add frontend/src/features/dashboard
+git add frontend/src/app/features/dashboard
 git commit -m "feat(frontend): dashboard"
 ```
 
-### FE-11: End-to-end tests on desktop and phone (Playwright)
+### FE-11: Search and analysis screen
+
+**Learn first**
+
+- **Concepts:**
+  - The URL as the single source of state (query params).
+  - Facets and aggregations in the UI.
+  - Safe HTML rendering and Angular's sanitizer.
+- **Why it's built this way:** This is the 'aggregation and analysis' screen from the BKA posting: shareable, reload-safe, and safe against injection.
+- **Read:** [Router: query params](https://angular.dev/guide/routing/read-route-state) · [Angular security](https://angular.dev/guide/security)
+- **Check yourself** (answer these in your learning note):
+  1. Why store filters in the URL instead of component state?
+  2. What exactly does Angular's sanitizer remove from `[innerHTML]`?
+- **After the task:** write `docs/learning/FE-11.md`, then ask me for **"walkthrough FE-11"**.
+
+
+**Files:**
+- Create: `features/search/{search.service.ts, search.page.ts, search.page.html}`
+- Test: `features/search/search.page.spec.ts`
+
+**Interfaces:**
+- Consumes: `GET /search` (BE-13), `ResponsiveListComponent`, the `eur` and `deDate` pipes.
+- Produces:
+  - **`SearchService.search(q: SearchParams): Observable<SearchResult>`**, with `type SearchParams = { q?: string; kind?: "customer" | "order"; status?: OrderStatus; month?: string }`.
+  - **`SearchPage`:**
+    - **The URL is the single source of state:** `params = toSignal(route.queryParamMap.pipe(map(toSearchParams)))`.
+    - **Results:** `toSignal(route.queryParamMap.pipe(map(toSearchParams), distinctUntilChanged(isEqual), switchMap(p => service.search(p).pipe(catchError(() => of(EMPTY_RESULT))))))`.
+    - **The search box** writes to the URL: `debounceTime(300)` on its value changes, then `router.navigate([], { queryParams: { q }, queryParamsHandling: "merge", replaceUrl: true })`.
+    - **Filter chips** (`mat-chip-listbox`): kind, status and month, from `facets`, each showing its count ("Orders 12"). Selecting a chip sets that query parameter; selecting it again removes it.
+    - **Results:** customer hits link to `/customers/:id` and order hits to `/orders/:id`.
+      - The highlight is rendered with `[innerHTML]`. Angular's sanitizer runs on it, and the backend already escaped it (BE-13).
+    - **A "Product totals" table** for the current results.
+    - Empty state: "No matches. Try fewer words or remove a filter."
+
+- [ ] **Step 1: Write the failing tests**
+```ts
+it("typing updates the URL after 300 ms", async () => { /* fake timers; type "asha" → router.navigate with {q:"asha"} once */ });
+it("loading with query params searches once", async () => { /* /search?q=asha&kind=order → one GET /search?q=asha&kind=order */ });
+it("facet chips show counts and toggle filters", async () => {
+  // facets.kind {customer:1, order:2} → chips "Customers 1", "Orders 2"; click Orders → queryParams kind=order; click again → kind removed
+});
+it("product totals table", async () => { /* MINI_PAV 30 → row "Mini pav" "30" */ });
+it("highlight cannot inject script", async () => {
+  // highlight "<em>Asha</em><img src=x onerror=alert(1)>" → <em> rendered, no onerror attribute in DOM
+});
+it("search error shows empty state, page keeps working", async () => { /* 500 → empty-state text; next search still sent */ });
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+  Run: `cd frontend && npm test`
+  Expected: FAIL.
+
+- [ ] **Step 3: Implement the interfaces above**
+
+- [ ] **Step 4: Run the tests to verify they pass**
+  Run: `cd frontend && npm test`
+  Expected: PASS.
+
+- [ ] **Step 5: Commit**
+```bash
+git add frontend/src/app/features/search
+git commit -m "feat(frontend): search page with URL-driven filters, facets and product totals"
+```
+
+### FE-12: End-to-end tests on desktop and phone (Playwright)
+
+**Learn first**
+
+- **Concepts:**
+  - End-to-end testing with Playwright; device emulation.
+  - Traces for debugging failures.
+- **Why it's built this way:** One test proves the whole business flow works on desktop and on a phone.
+- **Read:** [Playwright: getting started](https://playwright.dev/docs/intro)
+- **Check yourself** (answer these in your learning note):
+  1. Why only a few end-to-end tests compared with unit tests?
+  2. How do you avoid flaky waits?
+- **After the task:** write `docs/learning/FE-12.md`, then ask me for **"walkthrough FE-12"**.
+
 
 **Files:**
 - Create:
@@ -2094,10 +3034,9 @@ git commit -m "feat(frontend): dashboard"
 **Interfaces:**
 - **Config:**
   - Projects: `desktop` (Chromium, 1280×800) and `phone` (`devices["Pixel 7"]`).
-  - `baseURL = process.env.E2E_BASE_URL ?? "http://localhost:5173"`.
+  - `baseURL = process.env.E2E_BASE_URL ?? "http://localhost:4200"`.
   - Credentials from `E2E_EMAIL` and `E2E_PASSWORD` (any values in dev mode).
-  - `retries: 1` in CI.
-  - Trace `on-first-retry`.
+  - `retries: 1` in CI, and trace `on-first-retry`.
 - **The full flow relies on demo data:** the previous month has drafts, so it is generated but not locked for a new customer.
 
 - [ ] **Step 1: Write the end-to-end tests**
@@ -2106,14 +3045,15 @@ test("order to bill", async ({ page }) => {
   // 1 sign in
   // 2 Customers → New → name `E2E ${Date.now()}` → Save
   // 3 New order for this customer, delivery date = last day of previous month, Mini pav 20 → Save
-  // 4 Confirm → Start prep → Mark delivered (all on the order card)
-  // 5 Payments → record 5,00 € dated last day of previous month
-  // 6 Bills → previous month → Generate drafts → Issue this customer's bill → status "Issued"
-  // 7 Download PDF → expect a popup whose URL contains "/statements/" and ".pdf"
+  // 4 Confirm → Start prep → Mark delivered
+  // 5 Search → type the customer name → the order appears with "20× Mini pav"
+  // 6 Payments → record 5,00 € dated last day of previous month
+  // 7 Bills → previous month → Generate drafts → Issue this customer's bill → "Issued"
+  // 8 Download PDF → a popup whose URL contains "/statements/" and ".pdf"
 });
 ```
 ```ts
-for (const path of ["/", "/orders", "/orders/new", "/customers", "/rates", "/payments", "/bills"]) {
+for (const path of ["/", "/orders", "/orders/new", "/customers", "/rates", "/payments", "/bills", "/search"]) {
   test(`no horizontal scroll on ${path}`, async ({ page }) => {
     await signIn(page); await page.goto(path);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -2124,14 +3064,14 @@ for (const path of ["/", "/orders", "/orders/new", "/customers", "/rates", "/pay
 - [ ] **Step 2: Run them locally against the dev stack**
   Start the stack:
   - `docker compose up -d`
-  - Backend: `cd backend && uv run alembic upgrade head && uv run python -m app.seed_demo && uv run uvicorn app.main:app`
-  - Frontend, in another terminal: `cd frontend && VITE_AUTH_MODE=dev npm run dev`
+  - Backend: `cd backend && uv run alembic upgrade head && uv run python -m app.seed_demo && uv run python -m app.search.reindex && uv run uvicorn app.main:app`
+  - Frontend, in another terminal: `cd frontend && npm start` (`public/config.json` has `authMode: "dev"`)
 
   Then run `cd frontend && npx playwright install chromium && npm run e2e`.
   Expected: both projects PASS. If they fail, fix the app, not the test.
 
 - [ ] **Step 3: Update the README**
-  Add a "Run end-to-end tests" section, and a "Screenshots" section with one desktop and one phone screenshot (`page.screenshot`).
+  Add a "Run end-to-end tests" section, and a "Screenshots" section with one desktop and one phone screenshot.
 
 - [ ] **Step 4: Commit**
 ```bash
@@ -2146,6 +3086,18 @@ git commit -m "test(e2e): order-to-bill flow and no-horizontal-scroll checks on 
 Do these in order. Every command uses `--profile bread-admin --region eu-central-1`, written below as `$AWS`. Set it with `export AWS="--profile bread-admin --region eu-central-1"`. **Do the demo environment first, then prod.** Never paste connection strings or passwords into files in the repo.
 
 ### AWS-1: Secure the AWS account and set a cost alarm
+
+**Learn first**
+
+- **Concepts:**
+  - Root user vs IAM Identity Center users; MFA.
+  - Budgets and free-tier alerts.
+- **Why it's built this way:** Most AWS horror stories are unprotected root accounts and surprise bills; this prevents both.
+- **Read:** [IAM Identity Center: getting started](https://docs.aws.amazon.com/singlesignon/latest/userguide/getting-started.html)
+- **Check yourself** (answer these in your learning note):
+  1. Why never create access keys for root?
+- **After the task:** write `docs/learning/AWS-1.md`, then ask me for **"walkthrough AWS-1"**.
+
 
 - [ ] **Step 1: Create the account and protect root**
   1. Create an AWS account at aws.amazon.com and choose the Basic (free) support plan.
@@ -2177,6 +3129,18 @@ Do these in order. Every command uses `--profile bread-admin --region eu-central
   This creates alerts at 85% actual and 100% forecast.
 
 ### AWS-2: Neon databases and secrets in SSM
+
+**Learn first**
+
+- **Concepts:**
+  - Managed Postgres branches.
+  - SSM Parameter Store SecureString.
+- **Why it's built this way:** Secrets live in one encrypted place and never in Git or Terraform.
+- **Read:** [Neon docs](https://neon.tech/docs/introduction) · [SSM Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html)
+- **Check yourself** (answer these in your learning note):
+  1. Why a pooled connection string for Lambda?
+- **After the task:** write `docs/learning/AWS-2.md`, then ask me for **"walkthrough AWS-2"**.
+
 
 - [ ] **Step 1: Create the databases**
   1. Sign up at neon.tech (free plan).
@@ -2212,6 +3176,17 @@ unset DATABASE_URL
 
 ### AWS-3: Terraform state bucket and lock table
 
+**Learn first**
+
+- **Concepts:**
+  - Infrastructure as code; remote state and locking.
+- **Why it's built this way:** Shared, encrypted state means infrastructure changes are tracked and can't clash.
+- **Read:** [Terraform: get started with AWS](https://developer.hashicorp.com/terraform/tutorials/aws-get-started)
+- **Check yourself** (answer these in your learning note):
+  1. What would happen if two people ran `terraform apply` without a lock?
+- **After the task:** write `docs/learning/AWS-3.md`, then ask me for **"walkthrough AWS-3"**.
+
+
 - [ ] **Step 1: Write `infra/bootstrap/main.tf`** with:
   - **AWS provider:** `eu-central-1`, `default_tags = { project = "bread-order-app" }`.
   - **S3 bucket `bread-tfstate-<ACCOUNT_ID>`:**
@@ -2229,6 +3204,20 @@ unset DATABASE_URL
   Commit `infra/bootstrap/*.tf` and `.terraform.lock.hcl` in VS Code with the message `chore(infra): terraform state bootstrap`.
 
 ### AWS-4: Terraform module for one environment
+
+**Learn first**
+
+- **Concepts:**
+  - Terraform modules and variables.
+  - Cognito, S3, ECR, Lambda, API Gateway, CloudFront with OAC.
+  - Least-privilege IAM; GitHub OIDC.
+- **Why it's built this way:** One module, two environments: demo and prod are identical apart from their variables.
+- **Read:** [CloudFront origin access control](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html) · [GitHub OIDC with AWS](https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
+- **Check yourself** (answer these in your learning note):
+  1. Why can't anyone read the web bucket directly?
+  2. What stops a fork of your repo from deploying to your AWS account?
+- **After the task:** write `docs/learning/AWS-4.md`, then ask me for **"walkthrough AWS-4"**.
+
 
 Create `infra/modules/app/` (`variables.tf`, `main.tf`, `outputs.tf`). Use these resources and settings. You can ask Claude to draft the HCL from this list, but apply it yourself.
 
@@ -2376,6 +3365,18 @@ condition { test = "StringLike"   variable = "token.actions.githubusercontent.co
 
 ### AWS-5: Deploy the demo environment the first time
 
+**Learn first**
+
+- **Concepts:**
+  - Container registries; deploying an image to Lambda.
+  - Cache headers and CloudFront invalidation.
+- **Why it's built this way:** Doing the first deploy by hand shows you what CI will automate.
+- **Read:** [CloudFront invalidation](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Invalidation.html)
+- **Check yourself** (answer these in your learning note):
+  1. Why are `index.html` and `config.json` never cached, but the JS files are cached for a year?
+- **After the task:** write `docs/learning/AWS-5.md`, then ask me for **"walkthrough AWS-5"**.
+
+
 - [ ] **Step 1: Create the container registry first**
   Run: `cd infra/envs/demo && terraform apply -target=module.app.aws_ecr_repository.api`
   The Lambda needs an image before it can be created.
@@ -2398,10 +3399,14 @@ docker push $ECR/bread-api-demo:v0.0.1
 - [ ] **Step 5: Build and upload the frontend**
 ```bash
 cd frontend
-VITE_AUTH_MODE=cognito VITE_DEMO=true VITE_COGNITO_USER_POOL_ID=<pool> VITE_COGNITO_CLIENT_ID=<client> npm run build
-aws s3 sync dist s3://<web_bucket> --delete $AWS --cache-control "public,max-age=31536000,immutable" --exclude index.html
-aws s3 cp dist/index.html s3://<web_bucket>/index.html $AWS --cache-control "no-cache"
-aws cloudfront create-invalidation $AWS --distribution-id <id> --paths "/index.html"
+npm run build
+cat > dist/frontend/browser/config.json <<JSON
+{ "apiBaseUrl": "/api/v1", "authMode": "cognito", "cognitoUserPoolId": "<pool>", "cognitoClientId": "<client>", "demo": true }
+JSON
+aws s3 sync dist/frontend/browser s3://<web_bucket> --delete $AWS --cache-control "public,max-age=31536000,immutable" --exclude index.html --exclude config.json
+aws s3 cp dist/frontend/browser/index.html s3://<web_bucket>/index.html $AWS --cache-control "no-cache"
+aws s3 cp dist/frontend/browser/config.json s3://<web_bucket>/config.json $AWS --cache-control "no-cache"
+aws cloudfront create-invalidation $AWS --distribution-id <id> --paths "/index.html" "/config.json"
 ```
 
 - [ ] **Step 6: Create the demo login**
@@ -2422,6 +3427,18 @@ aws cognito-idp admin-set-user-password $AWS --user-pool-id <pool> --username de
   Then check the security headers at securityheaders.com; you should get grade A.
 
 ### AWS-6: CI/CD workflows (GitHub Actions)
+
+**Learn first**
+
+- **Concepts:**
+  - CI/CD workflows, GitHub environments and approvals.
+  - Masking secrets in logs.
+- **Why it's built this way:** Every merge deploys the demo and runs e2e tests; prod needs your approval.
+- **Read:** [Using environments for deployment](https://docs.github.com/en/actions/managing-workflow-runs-and-deployments/managing-deployments/managing-environments-for-deployment)
+- **Check yourself** (answer these in your learning note):
+  1. What's the difference between a repository variable and an environment secret?
+- **After the task:** write `docs/learning/AWS-6.md`, then ask me for **"walkthrough AWS-6"**.
+
 
 - [ ] **Step 1: Set up GitHub environments, variables and secrets**
   1. In GitHub → Settings → Environments, create:
@@ -2445,7 +3462,7 @@ aws cognito-idp admin-set-user-password $AWS --user-pool-id <pool> --username de
        - mask it immediately with `echo "::add-mask::$URL"`;
        - `uv run alembic upgrade head`.
     5. `aws lambda update-function-code` for `bread-api-demo` and `bread-demo-reset` with `--image-uri`, then `aws lambda wait function-updated`.
-    6. Build the frontend with the environment variables above and `VITE_DEMO=true`, then run the two `s3` uploads from AWS-5 Step 5 and the invalidation.
+    6. Build the frontend once, write `config.json` from the environment variables above with `"demo": true`, then run the `s3` uploads and the invalidation from AWS-5 Step 5.
   - **Job `e2e`** (needs `deploy`):
     - `npx playwright install --with-deps chromium`;
     - `npm run e2e` with `E2E_BASE_URL=https://${{ vars.CLOUDFRONT_DOMAIN }}` and the secrets;
@@ -2453,7 +3470,7 @@ aws cognito-idp admin-set-user-password $AWS --user-pool-id <pool> --username de
 
 - [ ] **Step 3: Write `.github/workflows/deploy-prod.yml`**
   - **Trigger:** `on: push: tags: ["v*"]`.
-  - **Job:** same as the demo deploy, but `environment: prod` (this pauses for your approval), the image tag is `${{ github.ref_name }}`, there is no reset function, the frontend is built with `VITE_DEMO=false`, and there are no e2e tests (prod holds real data).
+  - **Job:** same as the demo deploy, but `environment: prod` (this pauses for your approval), the image tag is `${{ github.ref_name }}`, there is no reset function, `config.json` has `"demo": false`, and there are no e2e tests (prod holds real data).
 
 - [ ] **Step 4: Add a Terraform plan job**
   Add a job `terraform-plan` to `backend.yml`, or create a new `infra.yml`:
@@ -2467,6 +3484,17 @@ aws cognito-idp admin-set-user-password $AWS --user-pool-id <pool> --username de
   Merge a small pull request to `main`. In the Actions tab, `deploy-demo` should be green and `e2e` should pass on both desktop and phone.
 
 ### AWS-7: Production environment
+
+**Learn first**
+
+- **Concepts:**
+  - Releases with tags; manual approval gates.
+- **Why it's built this way:** Real customer data only changes when you decide to release.
+- **Read:** [Git tagging](https://git-scm.com/book/en/v2/Git-Basics-Tagging)
+- **Check yourself** (answer these in your learning note):
+  1. How would you roll back a bad release?
+- **After the task:** write `docs/learning/AWS-7.md`, then ask me for **"walkthrough AWS-7"**.
+
 
 - [ ] **Step 1: Create the prod environment**
   Repeat AWS-5 Steps 1–3 in `infra/envs/prod`, with `mfa_required = true`.
@@ -2489,6 +3517,17 @@ aws cognito-idp admin-create-user $AWS --user-pool-id <prod pool> --username <em
 
 ### AWS-8: Monitoring and cost check
 
+**Learn first**
+
+- **Concepts:**
+  - Metrics, alarms and structured logs.
+- **Why it's built this way:** You hear about errors from an email, not from a customer.
+- **Read:** [CloudWatch alarms](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html)
+- **Check yourself** (answer these in your learning note):
+  1. How would you find the log entry for a user's error reference?
+- **After the task:** write `docs/learning/AWS-8.md`, then ask me for **"walkthrough AWS-8"**.
+
+
 - [ ] **Step 1: Test the alarm**
   1. In the Lambda console, temporarily set `SSM_DATABASE_URL` on `bread-api-demo` to `/bread/demo/missing`.
   2. Open the demo app; startup fails, so requests error.
@@ -2507,6 +3546,17 @@ aws cognito-idp admin-create-user $AWS --user-pool-id <prod pool> --username <em
 
 ### AWS-9: Finish the README for recruiters
 
+**Learn first**
+
+- **Concepts:**
+  - Writing for reviewers: README, badges, architecture.
+- **Why it's built this way:** Recruiters spend about a minute on a repo; the README decides what they see.
+- **Read:** [About READMEs](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes)
+- **Check yourself** (answer these in your learning note):
+  1. What would you say about this project in two minutes?
+- **After the task:** write `docs/learning/AWS-9.md`, then ask me for **"walkthrough AWS-9"**.
+
+
 - [ ] **Step 1: Badges**
   Replace the placeholders with real badges for the `backend`, `frontend` and `deploy-demo` workflows, plus coverage (e.g. upload `coverage.xml` to Codecov, which is free for public repos).
 
@@ -2514,7 +3564,7 @@ aws cognito-idp admin-create-user $AWS --user-pool-id <prod pool> --username <em
   Add a **Live demo** section with the demo URL and the demo login (email and password), noting that it resets nightly.
 
 - [ ] **Step 3: Architecture and decisions**
-  - Add an **Architecture** diagram (the one from spec §5).
+  - Add an **Architecture** diagram (`specs/diagrams/02-aws-deployment.png` from the architecture file).
   - Add a short **Security** list (MFA, OIDC with no keys, least-privilege IAM, CSP/HSTS, EU data residency).
   - Add a **Key decisions** section: why serverless, why Neon, why price snapshots, and why the billing-period lock.
 
@@ -2522,6 +3572,17 @@ aws cognito-idp admin-create-user $AWS --user-pool-id <prod pool> --username <em
   Message: `docs: live demo, badges and architecture`.
 
 ### AWS-10: Ongoing habits that keep the GitHub profile active
+
+**Learn first**
+
+- **Concepts:**
+  - Issues, project boards and steady small PRs.
+- **Why it's built this way:** Visible, regular progress is itself a signal to employers.
+- **Read:** [GitHub Projects](https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/about-projects)
+- **Check yourself** (answer these in your learning note):
+  1. How do you break a feature into issues?
+- **After the task:** write `docs/learning/AWS-10.md`, then ask me for **"walkthrough AWS-10"**.
+
 
 - [ ] **Step 1: Work in small pull requests**
   Use one PR per task in this plan, each referencing its task ID (e.g. "BE-7 orders API"). Small daily commits show steady activity.

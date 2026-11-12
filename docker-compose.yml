@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bread
+      POSTGRES_PASSWORD: bread
+      POSTGRES_DB: bread
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bread"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  s3:
+    image: motoserver/moto
+    ports:
+      - "5001:5000"
+
+  s3-init:
+    image: amazon/aws-cli
+    depends_on:
+      - s3
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: eu-central-1
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        until aws --endpoint-url http://s3:5000 s3api head-bucket --bucket bread-bills-local 2>/dev/null
+        || aws --endpoint-url http://s3:5000 s3 mb s3://bread-bills-local;
+        do sleep 1; done
+
+volumes:
+  pgdata:

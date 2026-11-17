@@ -11,6 +11,7 @@ docker-compose.yml file describes what are they.
 - Volume → a storage box on my Mac where Postgres keeps data, so it is not lost.
 - Healthcheck → Docker asks the database "are you ready?" and marks it healthy.
 - -d → runs everything in the background, so my terminal stays free.
+- uv creates backend folder
 
 ## Check-yourself answers
 1. `docker compose down` removes the containers but keeps the volume, so my data stays.

@@ -40,3 +40,45 @@ and no web code, so they are easy to test.
 ## Interview line
 "I keep business helpers like time zones, money formatting and error codes as pure,
 tested functions, so the whole app handles Berlin dates and euro amounts the same way."
+
+# BE-2 Part B — One error format, request IDs, JSON logs
+Imagine the API is a restaurant kitchen. Part B adds three things every professional kitchen needs.
+
+1. api/middleware.py: the order ticket and the safety net
+The ticket: every request gets a unique number, the request ID, like an order ticket number. It’s sent back in the X-Request-ID header.
+The safety net: if code crashes unexpectedly, this catches it, writes the full details to the log, and sends the user only a polite “Internal error”. The app never shows its insides.
+
+Why: when something goes wrong, the user can say “reference abc-123”, and you find exactly that request in the logs.
+
+2. api/errors.py: one standard way to say “no”
+
+The app can refuse a request for different reasons:
+
+a business rule, e.g. “this month is already billed” (DomainError);
+bad input, e.g. quantity 0;
+a wrong URL.
+
+This file turns all of them into the same JSON shape:
+
+json
+{"error": {"code": "PERIOD_LOCKED", "message": "...", "field": "paid_on"}}
+
+Why: the Angular app only needs to understand one error format. It reads code to choose the message, and field to highlight the right input box.
+
+3. logging_config.py: a structured diary
+
+It makes every log line JSON, and adds the request ID automatically:
+
+json
+{"timestamp": "...", "level": "ERROR", "logger": "app.request", "message": "unhandled_error", "request_id": "abc-123"}
+
+Why: on AWS, CloudWatch can search and filter JSON logs, e.g. “show me everything for request abc-123”, or “all errors today”. Plain text lines are much harder to search.
+
+How they work together
+1. Request arrives        → middleware gives it ID abc-123
+2. Something goes wrong   → errors.py answers {"error": {...}}   (known problem)
+                            or middleware answers "Internal error" (unexpected crash)
+3. Log line written       → logging_config adds "request_id": "abc-123"
+4. Response sent          → header X-Request-ID: abc-123
+
+In one sentence: the user gets a clear, safe answer; the frontend gets one predictable error format; and you can find any problem in the logs by its ID.

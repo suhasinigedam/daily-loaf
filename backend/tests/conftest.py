@@ -1,16 +1,16 @@
-import pytest
-from fastapi.testclient import TestClient
-
-from app.config import Settings
-from app.main import create_app
 from collections.abc import Iterator
 from pathlib import Path
 
+import pytest
 from alembic import command
 from alembic.config import Config
+from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session
 from testcontainers.postgres import PostgresContainer
+
+from app.config import Settings
+from app.main import create_app
 
 
 @pytest.fixture

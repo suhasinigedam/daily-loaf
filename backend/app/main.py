@@ -4,6 +4,7 @@ from app.api.errors import install_error_handlers
 from app.api.middleware import RequestIdMiddleware
 from app.api.routes import health
 from app.config import Settings
+from app.db import make_session_factory
 from app.logging_config import configure_logging
 
 
@@ -13,6 +14,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="Daily Loaf API", version="0.1.0")
     app.state.settings = settings
+    app.state.session_factory = make_session_factory(settings.database_url)
     app.add_middleware(RequestIdMiddleware)
     install_error_handlers(app)
     app.include_router(health.router, prefix="/api/v1")

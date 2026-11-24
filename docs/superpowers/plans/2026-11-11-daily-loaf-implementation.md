@@ -550,16 +550,30 @@ git commit -m "feat(db): sqlalchemy base, alembic and test database fixtures"
 ```python
 def test_migration_creates_all_tables(engine):
     names = set(inspect(engine).get_table_names())
-    assert {"customers", "products", "product_rates", "orders", "order_items", "payments",
-            "adjustments", "monthly_statements", "billing_months"} <= names
+    assert {
+        "customers",
+        "products",
+        "product_rates",
+        "orders",
+        "order_items",
+        "payments",
+        "adjustments",
+        "monthly_statements",
+        "billing_months",
+    } <= names
+
 
 def test_models_match_migrations(pg_url):
-    alembic_command.check(alembic_cfg(pg_url))  # raises if autogenerate would emit changes
+    alembic_command.check(
+        alembic_cfg(pg_url)
+    )  # raises if autogenerate would emit changes
+
 
 def test_rate_unique_per_product_and_date(session):
     ...  # insert two ProductRate rows with same product_id + effective_from
     with pytest.raises(IntegrityError):
         session.flush()
+
 
 def test_order_item_quantity_must_be_positive(session):
     ...  # OrderItem(quantity=0)
@@ -609,12 +623,19 @@ git commit -m "feat(db): schema for customers, products, rates, orders, payments
 - [ ] **Step 1: Write the failing test**
 ```python
 def test_products_and_initial_rates_seeded(session):
-    rows = session.execute(text(
-        "select p.code, p.name, r.price_cents, r.effective_from from products p "
-        "join product_rates r on r.product_id = p.id order by p.sort_order")).all()
+    rows = session.execute(
+        text(
+            "select p.code, p.name, r.price_cents, r.effective_from from products p "
+            "join product_rates r on r.product_id = p.id order by p.sort_order"
+        )
+    ).all()
     assert [(c, n, pr) for c, n, pr, _ in rows] == [
-        ("MINI_PAV", "Mini pav", 40), ("MEDIUM_PAV", "Medium pav", 55),
-        ("NORMAL_PAV", "Normal pav", 60), ("BROWNIE", "Brownie", 100), ("ROTI", "Roti", 100)]
+        ("MINI_PAV", "Mini pav", 40),
+        ("MEDIUM_PAV", "Medium pav", 55),
+        ("NORMAL_PAV", "Normal pav", 60),
+        ("BROWNIE", "Brownie", 100),
+        ("ROTI", "Roti", 100),
+    ]
     assert {d for *_, d in rows} == {date(2026, 1, 1)}
 ```
 
@@ -944,6 +965,7 @@ git push -u origin chore/be-1-scaffold
 def test_today_berlin_after_midnight():  # Review Focus 1
     assert today_berlin(datetime(2026, 11, 3, 23, 30, tzinfo=UTC)) == date(2026, 11, 4)
 
+
 def test_month_helpers():
     assert month_end(date(2026, 2, 1)) == date(2026, 2, 28)
     assert next_month(date(2026, 12, 1)) == date(2027, 1, 1)
@@ -952,25 +974,42 @@ def test_month_helpers():
     with pytest.raises(DomainError):
         parse_month("2026-13")
 
-@pytest.mark.parametrize("cents,text", [(55, "0,55 €"), (123456, "1.234,56 €"),
-                                        (-500, "-5,00 €"), (0, "0,00 €")])
+
+@pytest.mark.parametrize(
+    "cents,text",
+    [(55, "0,55 €"), (123456, "1.234,56 €"), (-500, "-5,00 €"), (0, "0,00 €")],
+)
 def test_format_eur(cents, text):
     assert format_eur(cents) == text
 
-def test_domain_error_shape(anon_client_with_probe):   # probe route raises DomainError(PERIOD_LOCKED, "x", "paid_on")
+
+def test_domain_error_shape(
+    anon_client_with_probe,
+):  # probe route raises DomainError(PERIOD_LOCKED, "x", "paid_on")
     r = anon_client_with_probe.get("/api/v1/_probe/domain")
     assert r.status_code == 409
-    assert r.json() == {"error": {"code": "PERIOD_LOCKED", "message": "x", "field": "paid_on"}}
+    assert r.json() == {
+        "error": {"code": "PERIOD_LOCKED", "message": "x", "field": "paid_on"}
+    }
     assert uuid.UUID(r.headers["X-Request-ID"])
 
-def test_unexpected_error_hides_details(anon_client_with_probe):  # probe raises RuntimeError("secret")
+
+def test_unexpected_error_hides_details(
+    anon_client_with_probe,
+):  # probe raises RuntimeError("secret")
     r = anon_client_with_probe.get("/api/v1/_probe/boom")
     assert r.status_code == 500 and "secret" not in r.text
     assert r.json()["error"]["code"] == "INTERNAL_ERROR"
 
+
 def test_request_id_is_echoed(anon_client):
     rid = str(uuid.uuid4())
-    assert anon_client.get("/api/v1/health", headers={"X-Request-ID": rid}).headers["X-Request-ID"] == rid
+    assert (
+        anon_client.get("/api/v1/health", headers={"X-Request-ID": rid}).headers[
+            "X-Request-ID"
+        ]
+        == rid
+    )
 ```
   `anon_client_with_probe` is a fixture that adds a test-only router to the app. It is never added in `create_app`.
 
@@ -1128,32 +1167,64 @@ git commit -m "feat(backend): cognito access-token verification and local dev au
 ```python
 RATES = [(date(2026, 1, 1), 55), (date(2026, 11, 10), 60)]
 
+
 def test_rate_before_and_on_change():
     assert resolve_rate(RATES, date(2026, 11, 9)) == 55
     assert resolve_rate(RATES, date(2026, 11, 10)) == 60
+
 
 def test_no_rate_before_first():
     with pytest.raises(DomainError) as e:
         resolve_rate(RATES, date(2025, 12, 31))
     assert e.value.code == ErrorCode.NO_RATE_FOR_DATE
 
-@pytest.mark.parametrize("a,b", [("pending", "confirmed"), ("confirmed", "in_prep"),
-    ("in_prep", "delivered"), ("pending", "cancelled"), ("confirmed", "cancelled"), ("in_prep", "cancelled")])
+
+@pytest.mark.parametrize(
+    "a,b",
+    [
+        ("pending", "confirmed"),
+        ("confirmed", "in_prep"),
+        ("in_prep", "delivered"),
+        ("pending", "cancelled"),
+        ("confirmed", "cancelled"),
+        ("in_prep", "cancelled"),
+    ],
+)
 def test_allowed_transitions(a, b):
     check_transition(OrderStatus(a), OrderStatus(b))
 
-@pytest.mark.parametrize("a,b", [("delivered", "cancelled"), ("pending", "in_prep"),
-    ("cancelled", "pending"), ("pending", "delivered"), ("delivered", "pending")])
+
+@pytest.mark.parametrize(
+    "a,b",
+    [
+        ("delivered", "cancelled"),
+        ("pending", "in_prep"),
+        ("cancelled", "pending"),
+        ("pending", "delivered"),
+        ("delivered", "pending"),
+    ],
+)
 def test_rejected_transitions(a, b):
     with pytest.raises(DomainError):
         check_transition(OrderStatus(a), OrderStatus(b))
 
+
 def test_editable_only_before_prep():
-    assert [s for s in OrderStatus if is_editable(s)] == [OrderStatus.PENDING, OrderStatus.CONFIRMED]
+    assert [s for s in OrderStatus if is_editable(s)] == [
+        OrderStatus.PENDING,
+        OrderStatus.CONFIRMED,
+    ]
+
 
 def test_statement_totals():
     t = compute_statement(1000, [400, 550], [500], [-100])
-    assert (t.orders_cents, t.payments_cents, t.adjustments_cents, t.closing_cents) == (950, 500, -100, 1350)
+    assert (t.orders_cents, t.payments_cents, t.adjustments_cents, t.closing_cents) == (
+        950,
+        500,
+        -100,
+        1350,
+    )
+
 
 def test_credit_carries_forward():
     assert compute_statement(-200, [], [], []).closing_cents == -200
@@ -1231,29 +1302,42 @@ git commit -m "feat(domain): rate lookup, order status rules, statement maths"
 - [ ] **Step 1: Write the failing tests**
 ```python
 def test_create_and_get(client):
-    r = client.post("/api/v1/customers", json={"name": "Asha Patil", "phone": "+49 151 1234567",
-                                               "address": "Hauptstr. 5, 60311 Frankfurt"})
+    r = client.post(
+        "/api/v1/customers",
+        json={
+            "name": "Asha Patil",
+            "phone": "+49 151 1234567",
+            "address": "Hauptstr. 5, 60311 Frankfurt",
+        },
+    )
     assert r.status_code == 201
     body = r.json()
     assert body["is_active"] is True and body["created_by"] == "test-admin"
     assert client.get(f"/api/v1/customers/{body['id']}").json()["name"] == "Asha Patil"
 
+
 def test_name_required(client):
     r = client.post("/api/v1/customers", json={"name": "  "})
     assert r.status_code == 422 and r.json()["error"]["field"] == "name"
 
-def test_search_and_inactive_filter(client, session): ...
+
+def test_search_and_inactive_filter(client, session):
+    ...
     # two customers, one deactivated; ?q=ash finds Asha; default list excludes deactivated;
     # include_inactive=true includes it
 
+
 def test_unknown_customer_404(client):
     assert client.get("/api/v1/customers/999999").json()["error"]["code"] == "NOT_FOUND"
+
 
 def test_anonymise(client, session):
     c = make_customer(session, name="Ravi")
     body = client.post(f"/api/v1/customers/{c.id}/anonymise").json()
     assert body["name"] == f"Anonymised customer #{c.id}"
-    assert body["phone"] is None and body["is_active"] is False and body["anonymised_at"]
+    assert (
+        body["phone"] is None and body["is_active"] is False and body["anonymised_at"]
+    )
     r = client.patch(f"/api/v1/customers/{c.id}", json={"name": "x"})
     assert r.json()["error"]["code"] == "CUSTOMER_INACTIVE"
 ```
@@ -1315,29 +1399,64 @@ git commit -m "feat(api): customers CRUD, deactivate and anonymise"
 ```python
 @time_machine.travel(datetime(2026, 11, 3, 10, tzinfo=UTC), tick=False)
 def test_initial_prices(client):
-    assert [(p["code"], p["price_cents"]) for p in client.get("/api/v1/products").json()] == [
-        ("MINI_PAV", 40), ("MEDIUM_PAV", 55), ("NORMAL_PAV", 60), ("BROWNIE", 100), ("ROTI", 100)]
+    assert [
+        (p["code"], p["price_cents"]) for p in client.get("/api/v1/products").json()
+    ] == [
+        ("MINI_PAV", 40),
+        ("MEDIUM_PAV", 55),
+        ("NORMAL_PAV", 60),
+        ("BROWNIE", 100),
+        ("ROTI", 100),
+    ]
+
 
 def test_new_rate_applies_from_its_date(client, session):
     pid = product_id(session, "MEDIUM_PAV")
-    assert client.post("/api/v1/rates", json={"product_id": pid, "price_cents": 58,
-                                              "effective_from": "2026-11-10"}).status_code == 201
-    def price(d): return next(p["price_cents"] for p in client.get(f"/api/v1/products?on={d}").json()
-                              if p["code"] == "MEDIUM_PAV")
+    assert (
+        client.post(
+            "/api/v1/rates",
+            json={"product_id": pid, "price_cents": 58, "effective_from": "2026-11-10"},
+        ).status_code
+        == 201
+    )
+
+    def price(d):
+        return next(
+            p["price_cents"]
+            for p in client.get(f"/api/v1/products?on={d}").json()
+            if p["code"] == "MEDIUM_PAV"
+        )
+
     assert price("2026-11-09") == 55 and price("2026-11-10") == 58
 
+
 def test_duplicate_rate_date(client, session):
-    body = {"product_id": product_id(session, "ROTI"), "price_cents": 110, "effective_from": "2026-01-01"}
+    body = {
+        "product_id": product_id(session, "ROTI"),
+        "price_cents": 110,
+        "effective_from": "2026-01-01",
+    }
     r = client.post("/api/v1/rates", json=body)
     assert r.status_code == 409 and r.json()["error"]["code"] == "RATE_EXISTS"
 
+
 def test_price_must_be_positive(client, session):
-    r = client.post("/api/v1/rates", json={"product_id": product_id(session, "ROTI"),
-                                           "price_cents": 0, "effective_from": "2026-12-01"})
+    r = client.post(
+        "/api/v1/rates",
+        json={
+            "product_id": product_id(session, "ROTI"),
+            "price_cents": 0,
+            "effective_from": "2026-12-01",
+        },
+    )
     assert r.status_code == 422 and r.json()["error"]["field"] == "price_cents"
 
+
 def test_price_is_null_before_first_rate(client):
-    assert all(p["price_cents"] is None for p in client.get("/api/v1/products?on=2025-12-31").json())
+    assert all(
+        p["price_cents"] is None
+        for p in client.get("/api/v1/products?on=2025-12-31").json()
+    )
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -1413,9 +1532,17 @@ git commit -m "feat(api): products with price for a date, rate history, new rate
 - [ ] **Step 1: Write the failing tests**
 ```python
 def new_order(session, c, **kw):
-    return {"customer_id": c.id, "delivery_date": "2026-11-05", "source": "whatsapp",
-            "items": [{"product_id": product_id(session, "MINI_PAV"), "quantity": 20},
-                      {"product_id": product_id(session, "MEDIUM_PAV"), "quantity": 10}], **kw}
+    return {
+        "customer_id": c.id,
+        "delivery_date": "2026-11-05",
+        "source": "whatsapp",
+        "items": [
+            {"product_id": product_id(session, "MINI_PAV"), "quantity": 20},
+            {"product_id": product_id(session, "MEDIUM_PAV"), "quantity": 10},
+        ],
+        **kw,
+    }
+
 
 def test_create_order_copies_prices(client, session):
     c = make_customer(session)
@@ -1424,48 +1551,106 @@ def test_create_order_copies_prices(client, session):
     o = r.json()
     assert [i["unit_price_cents"] for i in o["items"]] == [40, 55]
     assert o["total_cents"] == 1350 and o["status"] == "pending"
-    client.post("/api/v1/rates", json={"product_id": product_id(session, "MINI_PAV"),
-                                       "price_cents": 45, "effective_from": "2026-11-01"})
-    assert client.get(f"/api/v1/orders/{o['id']}").json()["items"][0]["unit_price_cents"] == 40
+    client.post(
+        "/api/v1/rates",
+        json={
+            "product_id": product_id(session, "MINI_PAV"),
+            "price_cents": 45,
+            "effective_from": "2026-11-01",
+        },
+    )
+    assert (
+        client.get(f"/api/v1/orders/{o['id']}").json()["items"][0]["unit_price_cents"]
+        == 40
+    )
+
 
 def test_no_rate_for_date(client, session):
-    r = client.post("/api/v1/orders", json=new_order(session, make_customer(session), delivery_date="2025-12-31"))
+    r = client.post(
+        "/api/v1/orders",
+        json=new_order(session, make_customer(session), delivery_date="2025-12-31"),
+    )
     assert r.status_code == 422 and r.json()["error"]["code"] == "NO_RATE_FOR_DATE"
 
-@pytest.mark.parametrize("items,field", [            # Review Focus 5
-    ([], "items"), ([{"product_id": "MINI_PAV", "quantity": 0}], "items.0.quantity"),
-    ([{"product_id": "MINI_PAV", "quantity": 1}, {"product_id": "MINI_PAV", "quantity": 2}], "items")])
-def test_bad_items(client, session, items, field):
-    for i in items: i["product_id"] = product_id(session, i["product_id"])
-    r = client.post("/api/v1/orders", json=new_order(session, make_customer(session), items=items))
-    assert r.status_code == 422
-    assert r.json()["error"]["code"] == "VALIDATION_ERROR" and r.json()["error"]["field"] == field
 
-@pytest.mark.parametrize("action", ["deactivate", "anonymise"])   # Review Focus 3
+@pytest.mark.parametrize(
+    "items,field",
+    [  # Review Focus 5
+        ([], "items"),
+        ([{"product_id": "MINI_PAV", "quantity": 0}], "items.0.quantity"),
+        (
+            [
+                {"product_id": "MINI_PAV", "quantity": 1},
+                {"product_id": "MINI_PAV", "quantity": 2},
+            ],
+            "items",
+        ),
+    ],
+)
+def test_bad_items(client, session, items, field):
+    for i in items:
+        i["product_id"] = product_id(session, i["product_id"])
+    r = client.post(
+        "/api/v1/orders", json=new_order(session, make_customer(session), items=items)
+    )
+    assert r.status_code == 422
+    assert (
+        r.json()["error"]["code"] == "VALIDATION_ERROR"
+        and r.json()["error"]["field"] == field
+    )
+
+
+@pytest.mark.parametrize("action", ["deactivate", "anonymise"])  # Review Focus 3
 def test_inactive_customer_cannot_order(client, session, action):
     c = make_customer(session)
     client.post(f"/api/v1/customers/{c.id}/{action}")
-    assert client.post("/api/v1/orders", json=new_order(session, c)).json()["error"]["code"] == "CUSTOMER_INACTIVE"
+    assert (
+        client.post("/api/v1/orders", json=new_order(session, c)).json()["error"][
+            "code"
+        ]
+        == "CUSTOMER_INACTIVE"
+    )
+
 
 def test_status_flow(client, session):
     o = make_order(session, make_customer(session), date(2026, 11, 5), {"ROTI": 5})
     for s in ["confirmed", "in_prep", "delivered"]:
-        assert client.post(f"/api/v1/orders/{o.id}/status", json={"status": s}).json()["status"] == s
+        assert (
+            client.post(f"/api/v1/orders/{o.id}/status", json={"status": s}).json()[
+                "status"
+            ]
+            == s
+        )
     r = client.post(f"/api/v1/orders/{o.id}/status", json={"status": "cancelled"})
     assert r.json()["error"]["code"] == "INVALID_STATUS_TRANSITION"
 
+
 def test_not_editable_in_prep(client, session):
     c = make_customer(session)
-    o = make_order(session, c, date(2026, 11, 5), {"ROTI": 5}, status=OrderStatus.IN_PREP)
-    assert client.put(f"/api/v1/orders/{o.id}", json=new_order(session, c)).json()["error"]["code"] == "ORDER_NOT_EDITABLE"
+    o = make_order(
+        session, c, date(2026, 11, 5), {"ROTI": 5}, status=OrderStatus.IN_PREP
+    )
+    assert (
+        client.put(f"/api/v1/orders/{o.id}", json=new_order(session, c)).json()[
+            "error"
+        ]["code"]
+        == "ORDER_NOT_EDITABLE"
+    )
 
-def test_edit_confirmed_recopies_price_for_new_date(client, session): ...
+
+def test_edit_confirmed_recopies_price_for_new_date(client, session):
+    ...
     # rate MINI 45 from 2026-11-20; PUT with delivery_date 2026-11-21 -> MINI unit price 45
 
-@pytest.mark.parametrize("lock", ["issued_statement", "later_month_generated"])  # Review Focus 4
+
+@pytest.mark.parametrize(
+    "lock", ["issued_statement", "later_month_generated"]
+)  # Review Focus 4
 def test_deliver_into_locked_month(client, session, lock):
     c = make_customer(session)
-    o = make_order(session, c, date(2026, 10, 30), {"ROTI": 5}, status=OrderStatus.IN_PREP)
+    o = make_order(
+        session, c, date(2026, 10, 30), {"ROTI": 5}, status=OrderStatus.IN_PREP
+    )
     if lock == "issued_statement":
         make_statement(session, c, date(2026, 10, 1))
     else:
@@ -1474,7 +1659,9 @@ def test_deliver_into_locked_month(client, session, lock):
     assert r.status_code == 409 and r.json()["error"]["code"] == "PERIOD_LOCKED"
     assert client.get(f"/api/v1/orders/{o.id}").json()["status"] == "in_prep"
 
-def test_list_filters(client, session): ...
+
+def test_list_filters(client, session):
+    ...
     # orders on 11-04 and 11-05 with different statuses; date_from=date_to=2026-11-05&status=pending returns only that one
 ```
 
@@ -1541,27 +1728,59 @@ git commit -m "feat(api): orders with price snapshots, status workflow and billi
 @time_machine.travel(datetime(2026, 11, 3, 10, tzinfo=UTC), tick=False)
 def test_record_and_list_payment(client, session):
     c = make_customer(session)
-    r = client.post("/api/v1/payments", json={"customer_id": c.id, "amount_cents": 850,
-                                              "paid_on": "2026-11-02", "method": "bank_transfer"})
+    r = client.post(
+        "/api/v1/payments",
+        json={
+            "customer_id": c.id,
+            "amount_cents": 850,
+            "paid_on": "2026-11-02",
+            "method": "bank_transfer",
+        },
+    )
     assert r.status_code == 201
-    assert [p["amount_cents"] for p in client.get(f"/api/v1/payments?customer_id={c.id}&month=2026-11").json()] == [850]
+    assert [
+        p["amount_cents"]
+        for p in client.get(f"/api/v1/payments?customer_id={c.id}&month=2026-11").json()
+    ] == [850]
+
 
 @time_machine.travel(datetime(2026, 11, 3, 10, tzinfo=UTC), tick=False)
 def test_future_payment_rejected(client, session):
-    r = client.post("/api/v1/payments", json={"customer_id": make_customer(session).id, "amount_cents": 1,
-                                              "paid_on": "2026-11-04", "method": "cash"})
+    r = client.post(
+        "/api/v1/payments",
+        json={
+            "customer_id": make_customer(session).id,
+            "amount_cents": 1,
+            "paid_on": "2026-11-04",
+            "method": "cash",
+        },
+    )
     assert r.status_code == 422 and r.json()["error"]["field"] == "paid_on"
 
+
 def test_payment_in_locked_month(client, session):
-    c = make_customer(session); make_statement(session, c, date(2026, 10, 1))
-    r = client.post("/api/v1/payments", json={"customer_id": c.id, "amount_cents": 100,
-                                              "paid_on": "2026-10-15", "method": "cash"})
+    c = make_customer(session)
+    make_statement(session, c, date(2026, 10, 1))
+    r = client.post(
+        "/api/v1/payments",
+        json={
+            "customer_id": c.id,
+            "amount_cents": 100,
+            "paid_on": "2026-10-15",
+            "method": "cash",
+        },
+    )
     assert r.json()["error"]["code"] == "PERIOD_LOCKED"
 
-def test_delete_payment_in_locked_month(client, session): ...   # 409 PERIOD_LOCKED; row still listed
-def test_adjustment_create_and_lock(client, session): ...       # -100 for 2026-12 ok; for locked 2026-10 → PERIOD_LOCKED
-def test_adjustment_zero_rejected(client, session): ...         # 422 field amount_cents
-def test_bad_month_param(client): ...                           # ?month=2026-13 → 422 field month
+
+def test_delete_payment_in_locked_month(
+    client, session
+): ...  # 409 PERIOD_LOCKED; row still listed
+def test_adjustment_create_and_lock(
+    client, session
+): ...  # -100 for 2026-12 ok; for locked 2026-10 → PERIOD_LOCKED
+def test_adjustment_zero_rejected(client, session): ...  # 422 field amount_cents
+def test_bad_month_param(client): ...  # ?month=2026-13 → 422 field month
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -1640,45 +1859,73 @@ git commit -m "feat(api): payments and adjustments with period lock"
 ```python
 def setup_october(session):
     a, b = make_customer(session, name="A"), make_customer(session, name="B")
-    make_order(session, a, date(2026, 10, 5), {"MINI_PAV": 20, "MEDIUM_PAV": 10}, status=OrderStatus.DELIVERED)  # 1350
+    make_order(
+        session,
+        a,
+        date(2026, 10, 5),
+        {"MINI_PAV": 20, "MEDIUM_PAV": 10},
+        status=OrderStatus.DELIVERED,
+    )  # 1350
     make_order(session, a, date(2026, 10, 6), {"ROTI": 5}, status=OrderStatus.CANCELLED)
     make_order(session, a, date(2026, 10, 7), {"ROTI": 5}, status=OrderStatus.PENDING)
     make_payment(session, a, 500, date(2026, 10, 20))
     return a, b
 
+
 def test_generate_first_month(client, session):
     a, b = setup_october(session)
     st = client.post("/api/v1/statements/generate", json={"month": "2026-10"}).json()
-    assert len(st) == 1                                    # B has no activity → no statement
+    assert len(st) == 1  # B has no activity → no statement
     s = st[0]
-    assert (s["opening_cents"], s["orders_cents"], s["payments_cents"], s["closing_cents"]) == (0, 1350, 500, 850)
+    assert (
+        s["opening_cents"],
+        s["orders_cents"],
+        s["payments_cents"],
+        s["closing_cents"],
+    ) == (0, 1350, 500, 850)
     assert s["status"] == "draft" and s["invoice_number"] == f"2026-10-{a.id}"
 
+
 def test_next_month_needs_previous_issued(client, session):
-    setup_october(session); client.post("/api/v1/statements/generate", json={"month": "2026-10"})
+    setup_october(session)
+    client.post("/api/v1/statements/generate", json={"month": "2026-10"})
     r = client.post("/api/v1/statements/generate", json={"month": "2026-11"})
     assert r.json()["error"]["code"] == "PREVIOUS_MONTH_NOT_ISSUED"
+
 
 def test_carry_forward(client, session):
     a, _ = setup_october(session)
     client.post("/api/v1/statements/generate", json={"month": "2026-10"})
     session.execute(update(MonthlyStatement).values(status="issued"))
-    make_order(session, a, date(2026, 11, 3), {"NORMAL_PAV": 10}, status=OrderStatus.DELIVERED)  # 600
+    make_order(
+        session, a, date(2026, 11, 3), {"NORMAL_PAV": 10}, status=OrderStatus.DELIVERED
+    )  # 600
     make_payment(session, a, 850, date(2026, 11, 4))
     s = client.post("/api/v1/statements/generate", json={"month": "2026-11"}).json()[0]
     assert (s["opening_cents"], s["closing_cents"]) == (850, 600)
-    make_order(session, a, date(2026, 12, 1), {"ROTI": 2}, status=OrderStatus.DELIVERED)          # unbilled 200
+    make_order(
+        session, a, date(2026, 12, 1), {"ROTI": 2}, status=OrderStatus.DELIVERED
+    )  # unbilled 200
     assert client.get(f"/api/v1/customers/{a.id}").json()["balance_cents"] == 800
 
-def test_credit_carries_and_zero_balance_skipped(client, session): ...
+
+def test_credit_carries_and_zero_balance_skipped(client, session):
+    ...
     # overpayment → negative closing appears as next opening; customer with closing 0 and no activity gets no statement
 
-def test_regenerate_replaces_drafts(client, session): ...
+
+def test_regenerate_replaces_drafts(client, session):
+    ...
     # add a delivered October order after first generate; regenerate → orders_cents includes it, still 1 statement
 
-def test_regenerate_after_later_month_rejected(client, session): ...   # LATER_MONTH_GENERATED
 
-def test_detail_lines(client, session): ...
+def test_regenerate_after_later_month_rejected(
+    client, session
+): ...  # LATER_MONTH_GENERATED
+
+
+def test_detail_lines(client, session):
+    ...
     # GET /statements/{id} lines: 2 lines on 2026-10-05: Mini pav 20×40=800, Medium pav 10×55=550
 ```
 
@@ -1752,37 +1999,79 @@ git commit -m "feat(api): monthly statement generation, carry-forward and balanc
 - [ ] **Step 1: Write the failing tests**
 ```python
 def test_pdf_contains_required_content():
-    pdf = render_bill_pdf(BillData("Test Bakery", "Teststraße 1, 60311 Frankfurt", "Asha Patil", None,
-        "2026-10-7", date(2026, 11, 1), date(2026, 10, 1), date(2026, 10, 31),
-        [StatementLine(date(2026, 10, 5), 1, "Mini pav", 20, 40, 800)],
-        StatementTotals(0, 800, 0, 50, 850)))
+    pdf = render_bill_pdf(
+        BillData(
+            "Test Bakery",
+            "Teststraße 1, 60311 Frankfurt",
+            "Asha Patil",
+            None,
+            "2026-10-7",
+            date(2026, 11, 1),
+            date(2026, 10, 1),
+            date(2026, 10, 31),
+            [StatementLine(date(2026, 10, 5), 1, "Mini pav", 20, 40, 800)],
+            StatementTotals(0, 800, 0, 50, 850),
+        )
+    )
     text = "".join(p.extract_text() for p in PdfReader(BytesIO(pdf)).pages)
-    for s in ["2026-10-7", "Asha Patil", "05.10.2026", "8,00 €", "8,50 €",
-              "Gemäß § 19 UStG wird keine Umsatzsteuer berechnet."]:
+    for s in [
+        "2026-10-7",
+        "Asha Patil",
+        "05.10.2026",
+        "8,00 €",
+        "8,50 €",
+        "Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.",
+    ]:
         assert s in text
 
-def draft_october(client, session): ...   # setup_october from BE-9 + generate → returns statement id
 
-@time_machine.travel(datetime(2026, 10, 31, 21, 0, tzinfo=UTC), tick=False)   # 22:00 Berlin, 31 Oct
-def test_issue_before_month_end_rejected(client, session):                     # Review Focus 2
+def draft_october(
+    client, session
+): ...  # setup_october from BE-9 + generate → returns statement id
+
+
+@time_machine.travel(
+    datetime(2026, 10, 31, 21, 0, tzinfo=UTC), tick=False
+)  # 22:00 Berlin, 31 Oct
+def test_issue_before_month_end_rejected(client, session):  # Review Focus 2
     sid = draft_october(client, session)
-    assert client.post(f"/api/v1/statements/{sid}/issue").json()["error"]["code"] == "MONTH_NOT_ENDED"
+    assert (
+        client.post(f"/api/v1/statements/{sid}/issue").json()["error"]["code"]
+        == "MONTH_NOT_ENDED"
+    )
 
-@time_machine.travel(datetime(2026, 10, 31, 23, 30, tzinfo=UTC), tick=False)   # 00:30 Berlin, 1 Nov
+
+@time_machine.travel(
+    datetime(2026, 10, 31, 23, 30, tzinfo=UTC), tick=False
+)  # 00:30 Berlin, 1 Nov
 def test_issue_locks_and_stores_pdf(client, session, bill_store):
     sid = draft_october(client, session)
     s = client.post(f"/api/v1/statements/{sid}/issue").json()
     assert s["status"] == "issued" and s["has_pdf"] is True
     key = f"statements/2026-10/{s['customer_id']}.pdf"
-    assert bill_store.client.head_object(Bucket="test-bills", Key=key)["ContentType"] == "application/pdf"
-    assert client.post(f"/api/v1/statements/{sid}/issue").json()["error"]["code"] == "STATEMENT_ALREADY_ISSUED"
-    r = client.post("/api/v1/payments", json={"customer_id": s["customer_id"], "amount_cents": 100,
-                                              "paid_on": "2026-10-15", "method": "cash"})
+    assert (
+        bill_store.client.head_object(Bucket="test-bills", Key=key)["ContentType"]
+        == "application/pdf"
+    )
+    assert (
+        client.post(f"/api/v1/statements/{sid}/issue").json()["error"]["code"]
+        == "STATEMENT_ALREADY_ISSUED"
+    )
+    r = client.post(
+        "/api/v1/payments",
+        json={
+            "customer_id": s["customer_id"],
+            "amount_cents": 100,
+            "paid_on": "2026-10-15",
+            "method": "cash",
+        },
+    )
     assert r.json()["error"]["code"] == "PERIOD_LOCKED"
     url = client.get(f"/api/v1/statements/{sid}/pdf").json()["url"]
     assert key in url and "X-Amz-Expires=300" in url
 
-def test_pdf_of_draft_rejected(client, session): ...   # STATEMENT_NOT_ISSUED
+
+def test_pdf_of_draft_rejected(client, session): ...  # STATEMENT_NOT_ISSUED
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -1833,19 +2122,33 @@ git commit -m "feat(api): PDF bills, issuing locks the month, presigned download
 
 - [ ] **Step 1: Write the failing tests**
 ```python
-@time_machine.travel(datetime(2026, 11, 3, 23, 30, tzinfo=UTC), tick=False)   # Review Focus 1
+@time_machine.travel(
+    datetime(2026, 11, 3, 23, 30, tzinfo=UTC), tick=False
+)  # Review Focus 1
 def test_dashboard_uses_berlin_today(client, session):
-    c = make_customer(session); d = date(2026, 11, 4)
+    c = make_customer(session)
+    d = date(2026, 11, 4)
     make_order(session, c, d, {"MINI_PAV": 20}, status=OrderStatus.CONFIRMED)
     make_order(session, c, d, {"MINI_PAV": 10, "ROTI": 5})
     make_order(session, c, d, {"MINI_PAV": 99}, status=OrderStatus.CANCELLED)
     make_order(session, c, date(2026, 11, 3), {"MINI_PAV": 7})
     body = client.get("/api/v1/dashboard").json()
     assert body["date"] == "2026-11-04"
-    assert [(t["product_code"], t["quantity"]) for t in body["baking_totals"]] == [("MINI_PAV", 30), ("ROTI", 5)]
-    assert body["orders_by_status"] == {"pending": 1, "confirmed": 1, "in_prep": 0, "delivered": 0, "cancelled": 1}
+    assert [(t["product_code"], t["quantity"]) for t in body["baking_totals"]] == [
+        ("MINI_PAV", 30),
+        ("ROTI", 5),
+    ]
+    assert body["orders_by_status"] == {
+        "pending": 1,
+        "confirmed": 1,
+        "in_prep": 0,
+        "delivered": 0,
+        "cancelled": 1,
+    }
 
-def test_outstanding_ignores_credit(client, session): ...
+
+def test_outstanding_ignores_credit(client, session):
+    ...
     # A owes 600 (delivered order), B has credit -300 (payment only) → outstanding_cents == 600
 ```
 
@@ -1917,32 +2220,65 @@ git commit -m "feat(api): dashboard with Berlin-day baking totals and outstandin
 
 - [ ] **Step 1: Write the failing tests**
 ```python
-def test_lambda_health(monkeypatch, test_env):          # test_env sets the Settings env vars
+def test_lambda_health(monkeypatch, test_env):  # test_env sets the Settings env vars
     from app.lambda_handler import handler
-    event = {"version": "2.0", "routeKey": "$default", "rawPath": "/api/v1/health", "rawQueryString": "",
-             "headers": {"host": "x"}, "requestContext": {"http": {"method": "GET", "path": "/api/v1/health",
-             "sourceIp": "1.1.1.1", "protocol": "HTTP/1.1"}, "stage": "$default"}, "isBase64Encoded": False}
+
+    event = {
+        "version": "2.0",
+        "routeKey": "$default",
+        "rawPath": "/api/v1/health",
+        "rawQueryString": "",
+        "headers": {"host": "x"},
+        "requestContext": {
+            "http": {
+                "method": "GET",
+                "path": "/api/v1/health",
+                "sourceIp": "1.1.1.1",
+                "protocol": "HTTP/1.1",
+            },
+            "stage": "$default",
+        },
+        "isBase64Encoded": False,
+    }
     assert handler(event, LambdaContext())["statusCode"] == 200
+
 
 @mock_aws
 def test_load_ssm_parameters(monkeypatch):
     boto3.client("ssm", region_name="eu-central-1").put_parameter(
-        Name="/bread/demo/database_url", Value="postgresql+psycopg://x", Type="SecureString")
+        Name="/bread/demo/database_url",
+        Value="postgresql+psycopg://x",
+        Type="SecureString",
+    )
     monkeypatch.setenv("SSM_DATABASE_URL", "/bread/demo/database_url")
     load_ssm_parameters()
     assert os.environ["DATABASE_URL"] == "postgresql+psycopg://x"
 
+
 @time_machine.travel(datetime(2026, 11, 3, 10, tzinfo=UTC), tick=False)
 def test_seed_demo_is_repeatable(session):
-    seed_demo(session, date(2026, 11, 3)); seed_demo(session, date(2026, 11, 3))
+    seed_demo(session, date(2026, 11, 3))
+    seed_demo(session, date(2026, 11, 3))
     assert session.scalar(select(func.count()).select_from(Customer)) == 8
-    statuses = set(session.scalars(select(Order.status).where(Order.delivery_date >= date(2026, 11, 3))))
+    statuses = set(
+        session.scalars(
+            select(Order.status).where(Order.delivery_date >= date(2026, 11, 3))
+        )
+    )
     assert statuses == set(OrderStatus)
-    assert session.scalar(select(func.count()).select_from(MonthlyStatement)
-                          .where(MonthlyStatement.month == date(2026, 10, 1))) > 0
+    assert (
+        session.scalar(
+            select(func.count())
+            .select_from(MonthlyStatement)
+            .where(MonthlyStatement.month == date(2026, 10, 1))
+        )
+        > 0
+    )
+
 
 def test_seed_demo_refuses_prod(session, monkeypatch):
-    monkeypatch.setenv("ENVIRONMENT", "prod"); get_settings.cache_clear()
+    monkeypatch.setenv("ENVIRONMENT", "prod")
+    get_settings.cache_clear()
     with pytest.raises(RuntimeError):
         seed_demo(session, date(2026, 11, 3))
 ```
@@ -2063,15 +2399,38 @@ def seed(client, session):
     asha = make_customer(session, name="Asha Patil")
     ravi = make_customer(session, name="Ravi Kumar")
     for c in (asha, ravi):
-        client.patch(f"/api/v1/customers/{c.id}", json={"notes": "Weekend regular"})  # marks dirty via API
-    o1 = client.post("/api/v1/orders", json={"customer_id": asha.id, "delivery_date": "2026-11-05",
-        "items": [{"product_id": product_id(session, "MINI_PAV"), "quantity": 20}]}).json()
-    client.post("/api/v1/orders", json={"customer_id": asha.id, "delivery_date": "2026-10-20",
-        "items": [{"product_id": product_id(session, "MINI_PAV"), "quantity": 10},
-                  {"product_id": product_id(session, "ROTI"), "quantity": 5}]})
-    client.post("/api/v1/orders", json={"customer_id": ravi.id, "delivery_date": "2026-11-06",
-        "items": [{"product_id": product_id(session, "BROWNIE"), "quantity": 4}]})
+        client.patch(
+            f"/api/v1/customers/{c.id}", json={"notes": "Weekend regular"}
+        )  # marks dirty via API
+    o1 = client.post(
+        "/api/v1/orders",
+        json={
+            "customer_id": asha.id,
+            "delivery_date": "2026-11-05",
+            "items": [{"product_id": product_id(session, "MINI_PAV"), "quantity": 20}],
+        },
+    ).json()
+    client.post(
+        "/api/v1/orders",
+        json={
+            "customer_id": asha.id,
+            "delivery_date": "2026-10-20",
+            "items": [
+                {"product_id": product_id(session, "MINI_PAV"), "quantity": 10},
+                {"product_id": product_id(session, "ROTI"), "quantity": 5},
+            ],
+        },
+    )
+    client.post(
+        "/api/v1/orders",
+        json={
+            "customer_id": ravi.id,
+            "delivery_date": "2026-11-06",
+            "items": [{"product_id": product_id(session, "BROWNIE"), "quantity": 4}],
+        },
+    )
     return asha, ravi, o1
+
 
 def test_finds_customer_and_their_orders(search_client, session):
     asha, *_ = seed(search_client, session)
@@ -2079,10 +2438,12 @@ def test_finds_customer_and_their_orders(search_client, session):
     assert r["facets"]["kind"] == {"customer": 1, "order": 2}
     assert {h["title"] for h in r["hits"] if h["kind"] == "customer"} == {"Asha Patil"}
 
+
 def test_finds_orders_by_product(search_client, session):
     seed(search_client, session)
     r = search_client.get("/api/v1/search?q=brownie&kind=order").json()
     assert [h["subtitle"] for h in r["hits"]] == ["4× Brownie"]
+
 
 def test_filters_and_product_totals(search_client, session):
     seed(search_client, session)
@@ -2090,45 +2451,64 @@ def test_filters_and_product_totals(search_client, session):
     assert r["total"] == 1
     r = search_client.get("/api/v1/search?kind=order").json()
     assert [(p["product_code"], p["quantity"]) for p in r["product_totals"]] == [
-        ("MINI_PAV", 30), ("BROWNIE", 4), ("ROTI", 5)]
+        ("MINI_PAV", 30),
+        ("BROWNIE", 4),
+        ("ROTI", 5),
+    ]
     assert r["facets"]["month"] == {"2026-11": 2, "2026-10": 1}
+
 
 def test_anonymised_customer_not_findable(search_client, session):
     asha, *_ = seed(search_client, session)
     search_client.post(f"/api/v1/customers/{asha.id}/anonymise")
     assert search_client.get("/api/v1/search?q=asha").json()["total"] == 0
 
+
 def test_status_change_is_searchable(search_client, session):
     _, _, o1 = seed(search_client, session)
-    search_client.post(f"/api/v1/orders/{o1['id']}/status", json={"status": "confirmed"})
+    search_client.post(
+        f"/api/v1/orders/{o1['id']}/status", json={"status": "confirmed"}
+    )
     assert search_client.get("/api/v1/search?status=confirmed").json()["total"] == 1
 
+
 def test_bad_params(search_client):
-    assert search_client.get("/api/v1/search?month=2026-13").json()["error"]["field"] == "month"
+    assert (
+        search_client.get("/api/v1/search?month=2026-13").json()["error"]["field"]
+        == "month"
+    )
     assert search_client.get("/api/v1/search?limit=500").status_code == 422
 ```
   Product totals are ordered by `sort_order`: Mini pav (1), Brownie (4), Roti (5).
 
 - [ ] **Step 2: Write the failing Elasticsearch-only and sync tests**
 ```python
-def test_typo_tolerance(es_client, session):           # Elasticsearch only
+def test_typo_tolerance(es_client, session):  # Elasticsearch only
     seed(es_client, session)
-    assert any(h["title"] == "Asha Patil" for h in es_client.get("/api/v1/search?q=ahsa").json()["hits"])
+    assert any(
+        h["title"] == "Asha Patil"
+        for h in es_client.get("/api/v1/search?q=ahsa").json()["hits"]
+    )
+
 
 def test_highlight_is_escaped(es_client, session):
     es_client.post("/api/v1/customers", json={"name": "<script>x</script> Asha"})
     h = es_client.get("/api/v1/search?q=asha").json()["hits"][0]["highlight"]
     assert "<script>" not in h and "&lt;script&gt;" in h and "<em>" in h
 
+
 def test_index_down_does_not_block_writes(client_with_dead_es, caplog):
     r = client_with_dead_es.post("/api/v1/customers", json={"name": "Asha"})
     assert r.status_code == 201
     assert "search_sync_failed" in caplog.text
 
+
 def test_reindex_rebuilds(es_client, session, es_url):
     seed(es_client, session)
     Elasticsearch(es_url).indices.delete(index=INDEX_NAME)
-    assert es_client.post("/api/v1/search/reindex").json()["indexed"] == 5   # 2 customers + 3 orders
+    assert (
+        es_client.post("/api/v1/search/reindex").json()["indexed"] == 5
+    )  # 2 customers + 3 orders
     assert es_client.get("/api/v1/search?q=asha").json()["total"] == 3
 ```
   `client_with_dead_es` uses `ElasticsearchBackend(Elasticsearch("http://localhost:1", request_timeout=1))`.

@@ -5,6 +5,7 @@ from app.api.middleware import RequestIdMiddleware
 from app.api.routes import health
 from app.config import Settings
 from app.logging_config import configure_logging
+from app.db import make_session_factory
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -16,4 +17,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RequestIdMiddleware)
     install_error_handlers(app)
     app.include_router(health.router, prefix="/api/v1")
+    app.state.session_factory = make_session_factory(settings.database_url)
     return app

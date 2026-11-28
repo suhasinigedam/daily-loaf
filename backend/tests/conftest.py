@@ -69,3 +69,7 @@ def session(engine: Engine) -> Iterator[Session]:
         finally:
             db.close()
             transaction.rollback()
+
+@pytest.fixture
+def alembic_config(pg_url: str) -> Config:
+    return alembic_cfg(pg_url)

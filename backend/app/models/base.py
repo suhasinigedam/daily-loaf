@@ -1,8 +1,9 @@
 """Base class for all tables, plus audit columns (who changed what, when)."""
 
 from datetime import datetime
-
+from enum import StrEnum
 from sqlalchemy import DateTime, MetaData, String, func
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # Predictable names for constraints, so Alembic migrations stay stable.
@@ -35,3 +36,11 @@ def touch(obj: AuditMixin, username: str) -> None:
     obj.updated_by = username
     if getattr(obj, "created_by", None) is None:
         obj.created_by = username
+        
+def _enum_values(enum_cls: type[StrEnum]) -> list[str]:
+    return [member.value for member in enum_cls]
+
+
+def pg_enum(enum_cls: type[StrEnum], name: str) -> SAEnum:
+    """A native Postgres enum that stores the lowercase values ("pending")."""
+    return SAEnum(enum_cls, name=name, values_callable=_enum_values)
